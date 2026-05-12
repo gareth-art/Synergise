@@ -1,8 +1,55 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import bcrypt from "bcrypt";
+import MemoryStore from "memorystore";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
+
+const MemoryStoreSession = MemoryStore(session);
+
+// Passport local strategy
+passport.use(
+  new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
+    try {
+      const [user] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.email, email.toLowerCase().trim()));
+
+      if (!user) {
+        return done(null, false, { message: "Incorrect email or password" });
+      }
+
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        return done(null, false, { message: "Incorrect email or password" });
+      }
+
+      return done(null, user);
+    } catch (err) {
+      return done(err);
+    }
+  })
+);
+
+passport.serializeUser((user: Express.User, done) => {
+  done(null, (user as { id: number }).id);
+});
+
+passport.deserializeUser(async (id: number, done) => {
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    done(null, user || false);
+  } catch (err) {
+    done(err);
+  }
+});
 
 const app: Express = express();
 
@@ -25,9 +72,36 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  throw new Error("SESSION_SECRET must be set");
+}
+
+app.use(
+  session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    store: new MemoryStoreSession({
+      checkPeriod: 86400000,
+    }),
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use("/api", router);
 

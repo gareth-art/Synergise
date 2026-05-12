@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Synergise API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: onboarding
+    description: Onboarding operations
+  - name: models
+    description: Financial models
+  - name: accounts
+    description: Management accounts
+  - name: benchmarks
+    description: KPI benchmarks
+  - name: admin
+    description: Admin operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,252 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /onboarding:
+    get:
+      operationId: getOnboarding
+      tags: [onboarding]
+      summary: Get onboarding profile
+      responses:
+        "200":
+          description: Onboarding profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingProfile"
+        "404":
+          description: Not found
+    post:
+      operationId: saveOnboarding
+      tags: [onboarding]
+      summary: Save onboarding profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OnboardingInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OnboardingProfile"
+
+  /models:
+    get:
+      operationId: getModels
+      tags: [models]
+      summary: Get all financial models for current user
+      responses:
+        "200":
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FinancialModel"
+    post:
+      operationId: createModel
+      tags: [models]
+      summary: Save a financial model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinancialModelInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinancialModel"
+
+  /models/{id}:
+    delete:
+      operationId: deleteModel
+      tags: [models]
+      summary: Delete a financial model
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /accounts:
+    get:
+      operationId: getAccounts
+      tags: [accounts]
+      summary: Get all P&L entries for current user
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ManagementAccount"
+    post:
+      operationId: saveAccount
+      tags: [accounts]
+      summary: Save a monthly P&L entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagementAccountInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagementAccount"
+
+  /accounts/{id}:
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Delete a P&L entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /benchmarks:
+    get:
+      operationId: getBenchmarks
+      tags: [benchmarks]
+      summary: Get benchmark data
+      parameters:
+        - name: industry
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: region
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Benchmark data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KpiBenchmark"
+
+  /admin/segments:
+    get:
+      operationId: getAdminSegments
+      tags: [admin]
+      summary: Get admin segments data
+      responses:
+        "200":
+          description: Admin segments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSegmentsResponse"
+        "401":
+          description: Unauthorized
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +292,287 @@ components:
       required:
         - status
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: ["string", "null"]
+        email:
+          type: string
+        fullName:
+          type: string
+        subscriptionTier:
+          type: string
+        trialStartDate:
+          type: ["string", "null"]
+        createdAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - email
+        - fullName
+        - subscriptionTier
+
+    SignupInput:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        confirmPassword:
+          type: string
+      required:
+        - fullName
+        - email
+        - password
+        - confirmPassword
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    OnboardingProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        businessName:
+          type: string
+        industry:
+          type: string
+        region:
+          type: string
+        revenueStage:
+          type: string
+        onboardingCompletedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - businessName
+        - industry
+        - region
+        - revenueStage
+
+    OnboardingInput:
+      type: object
+      properties:
+        businessName:
+          type: string
+          minLength: 1
+        industry:
+          type: string
+        region:
+          type: string
+        revenueStage:
+          type: string
+      required:
+        - businessName
+        - industry
+        - region
+        - revenueStage
+
+    FinancialModel:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        industry:
+          type: string
+        modelName:
+          type: string
+        inputs:
+          type: object
+        outputs:
+          type: object
+        createdAt:
+          type: ["string", "null"]
+        updatedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - industry
+        - modelName
+        - inputs
+        - outputs
+
+    FinancialModelInput:
+      type: object
+      properties:
+        industry:
+          type: string
+        modelName:
+          type: string
+        inputs:
+          type: object
+        outputs:
+          type: object
+      required:
+        - industry
+        - modelName
+        - inputs
+        - outputs
+
+    ManagementAccount:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        period:
+          type: string
+        revenue:
+          type: string
+        cogs:
+          type: string
+        grossProfit:
+          type: string
+        grossMarginPct:
+          type: string
+        operatingExpenses:
+          type: object
+        ebitda:
+          type: string
+        netProfit:
+          type: string
+        createdAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - period
+        - revenue
+        - cogs
+        - grossProfit
+        - grossMarginPct
+        - operatingExpenses
+        - ebitda
+        - netProfit
+
+    ManagementAccountInput:
+      type: object
+      properties:
+        period:
+          type: string
+        revenue:
+          type: number
+        cogs:
+          type: number
+        operatingExpenses:
+          type: object
+      required:
+        - period
+        - revenue
+        - cogs
+        - operatingExpenses
+
+    KpiBenchmark:
+      type: object
+      properties:
+        id:
+          type: integer
+        industry:
+          type: string
+        region:
+          type: string
+        metric:
+          type: string
+        p10:
+          type: ["string", "null"]
+        p25:
+          type: ["string", "null"]
+        p50:
+          type: ["string", "null"]
+        p75:
+          type: ["string", "null"]
+        p90:
+          type: ["string", "null"]
+      required:
+        - id
+        - industry
+        - region
+        - metric
+
+    AdminSegment:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        industry:
+          type: string
+        region:
+          type: string
+        revenueStage:
+          type: string
+        subscriptionTier:
+          type: string
+        signupDate:
+          type: ["string", "null"]
+        fullName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - industry
+        - region
+        - revenueStage
+        - subscriptionTier
+
+    AdminSegmentsResponse:
+      type: object
+      properties:
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminSegment"
+        totals:
+          type: object
+          properties:
+            total:
+              type: integer
+            byIndustry:
+              type: object
+            byRegion:
+              type: object
+            byTier:
+              type: object
+          required:
+            - total
+            - byIndustry
+            - byRegion
+            - byTier
+      required:
+        - segments
+        - totals

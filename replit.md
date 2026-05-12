@@ -1,36 +1,52 @@
-# [Project name]
+# Synergise
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Financial clarity platform for founder-operators in Southeast Asia. Model your business, track performance, and benchmark against your peers — without needing a CFO.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
+- `pnpm --filter @workspace/synergise run dev` — run the web frontend (dynamic port via $PORT)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_PASSWORD`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
+- Frontend: React + Vite + Wouter (routing) + TanStack Query + shadcn/ui + Tailwind v4
+- API: Express 5 + Passport.js (local strategy) + express-session + MemoryStore + bcrypt
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
+- API codegen: Orval (from OpenAPI spec → React Query hooks + Zod schemas)
 - Build: esbuild (CJS bundle)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/synergise/` — React+Vite web frontend (previewPath `/`)
+- `artifacts/api-server/` — Express 5 API server (previewPath `/api`)
+- `lib/db/` — Drizzle ORM schema + DB connection (`@workspace/db`)
+- `lib/api-spec/openapi.yaml` — Source of truth for API contract (OpenAPI 3.1)
+- `lib/api-client-react/` — Generated TanStack Query hooks (`@workspace/api-client-react`)
+- `lib/api-zod/` — Generated Zod schemas (`@workspace/api-zod`)
+- `artifacts/api-server/src/routes/` — Express route handlers
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Contract-first API**: OpenAPI spec drives both client hooks and server Zod validation via Orval codegen. Run codegen after any spec change.
+- **Synergise brand colors** are defined as CSS custom properties in `index.css` (`:root`) and registered in the `@theme inline` block so Tailwind v4 can use them as utilities (`bg-synergise-primary`, `text-synergise-text`, etc.).
+- **Session auth**: Passport.js local strategy with express-session + MemoryStore (not redis-backed — swap for prod). `SESSION_SECRET` env var required.
+- **Admin panel** uses a simple `x-admin-password` header check against `ADMIN_PASSWORD` env var — not tied to regular user sessions.
+- **Benchmarks industry names** must exactly match what the onboarding frontend sends (e.g. `Wellness & Lifestyle`, `Technology & SaaS`, `Singapore`). The DB is seeded with these exact strings.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Landing page** — marketing hero, features, social proof, footer. Unauthenticated.
+- **Auth** — signup (email+password+fullName), login, logout. Session-based.
+- **Onboarding** — 4-step wizard (welcome → business info → region/stage → done). Saves profile and admin segment.
+- **Dashboard** — home (module cards + trial banner), Financial Modelling (industry-specific inputs + outputs + save), Management Accounts (P&L entry + recharts trend), Comparables/Benchmarking (opt-in consent + percentile bars), Settings (account info + subscription).
+- **Admin** — password-protected panel at `/admin` showing user segments table and totals.
 
 ## User preferences
 
@@ -38,7 +54,12 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Dark mode CSS placeholders (`red` values) have been replaced with a teal-dark palette in `index.css`.
+- After changing the OpenAPI spec, always run codegen: `pnpm --filter @workspace/api-spec run codegen`
+- After schema changes, run: `pnpm --filter @workspace/db run push`
+- Benchmark data was reseeded via psql with the correct full industry names (not short codes).
+- `bg-synergise-primary` and related Tailwind utilities only work because `--color-synergise-*` are registered in `@theme inline` in `index.css`.
+- Never import from `@workspace/api-client-react/src/...` — always import from the package root.
 
 ## Pointers
 

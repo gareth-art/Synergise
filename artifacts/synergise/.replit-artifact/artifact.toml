@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Synergise"
+version = "1.0.0"
+id = "artifacts/synergise"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23972
+
+[services.development]
+run = "pnpm --filter @workspace/synergise run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/synergise", "run", "build" ]
+publicDir = "artifacts/synergise/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23972"
+BASE_PATH = "/"

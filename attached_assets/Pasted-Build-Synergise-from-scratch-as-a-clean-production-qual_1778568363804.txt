@@ -1,0 +1,570 @@
+Build Synergise from scratch as a clean, production-quality SaaS application. This is a full rebuild — do not reference or reuse any previous code. Follow every specification below exactly.
+
+---
+
+## BRAND & DESIGN SYSTEM
+
+Name: Synergise
+Tagline: "Financial clarity, powered by intelligence."
+
+Colour palette (apply globally via CSS variables):
+--color-primary: #0D7377
+--color-primary-dark: #0A5C60
+--color-primary-light: #14FFEC
+--color-background: #F7F9F9
+--color-surface: #FFFFFF
+--color-text: #212121
+--color-text-muted: #6B7280
+--color-border: #E5E7EB
+--color-success: #10B981
+--color-warning: #F59E0B
+--color-error: #EF4444
+
+Typography:
+- Font: Inter (load from Google Fonts)
+- Hero headings: 48px, font-weight 700
+- Section headings: 28px, font-weight 600
+- Card headings: 18px, font-weight 600
+- Body: 15px, font-weight 400, line-height 1.6
+- Labels/captions: 13px, font-weight 500, color: text-muted
+
+Component standards:
+- Cards: white background, border border-color, rounded-xl, shadow-sm, padding p-6
+- Buttons primary: bg-primary, white text, rounded-lg, px-5 py-2.5, hover:bg-primary-dark
+- Buttons secondary: white bg, border border-primary, text-primary, rounded-lg, hover:bg-primary/5
+- Buttons ghost: no border, text-primary, hover:bg-primary/10
+- Input fields: white bg, border border-color, rounded-lg, px-4 py-2.5, focus:ring-2 focus:ring-primary/30
+- Page max-width: max-w-6xl mx-auto px-6
+- Section spacing: py-16 between major sections
+
+---
+
+## TECH STACK
+
+Frontend: React 18 + TypeScript + Vite
+Backend: Express.js + TypeScript
+Database: PostgreSQL via Neon + Drizzle ORM
+AI: Anthropic Claude (@anthropic-ai/sdk) — wrap all calls in try/catch, fallback gracefully if ANTHROPIC_API_KEY not set
+Payments: Stripe (install but do not activate — no live keys yet)
+Sessions: express-session + memorystore
+Routing: Wouter
+UI components: shadcn/ui + Radix UI + TailwindCSS
+Charts: Recharts
+PDF: jsPDF
+Icons: Lucide React
+Forms: React Hook Form + Zod
+Server state: TanStack Query
+
+Do NOT install: Redis, BullMQ, Puppeteer, AWS SDK, next-themes, OpenAI SDK
+
+---
+
+## DATABASE SCHEMA
+
+Create these tables via Drizzle:
+
+### users
+- id (serial primary key)
+- username (text, unique)
+- email (text, unique)
+- password (text, hashed with bcrypt)
+- fullName (text)
+- subscriptionTier: 'trial' | 'professional' (default: 'trial')
+- trialStartDate (timestamp)
+- createdAt (timestamp)
+
+### onboarding_profiles
+- id (serial primary key)
+- userId (integer, foreign key → users.id)
+- businessName (text)
+- industry (text) — values: wellness, consumer-products, membership, professional-services, fnb, ecommerce, saas, other
+- region (text) — values: sg, sea, apac, global, north-america, europe
+- revenueStage (text) — values: pre-revenue, under-500k, 500k-2m, over-2m
+- onboardingCompletedAt (timestamp)
+
+### financial_models
+- id (serial primary key)
+- userId (integer, foreign key → users.id)
+- industry (text)
+- modelName (text)
+- inputs (jsonb) — flexible schema for industry-specific inputs
+- outputs (jsonb) — calculated results
+- createdAt (timestamp)
+- updatedAt (timestamp)
+
+### management_accounts
+- id (serial primary key)
+- userId (integer, foreign key → users.id)
+- period (text) — e.g. "2026-Q1"
+- revenue (numeric)
+- cogs (numeric)
+- grossProfit (numeric)
+- grossMarginPct (numeric)
+- operatingExpenses (jsonb)
+- ebitda (numeric)
+- netProfit (numeric)
+- createdAt (timestamp)
+
+### kpi_benchmarks
+- id (serial primary key)
+- industry (text)
+- region (text)
+- metric (text)
+- p10 (numeric), p25 (numeric), p50 (numeric), p75 (numeric), p90 (numeric)
+- updatedAt (timestamp)
+
+### admin_segments (for internal analytics)
+- id (serial primary key)
+- userId (integer)
+- industry (text)
+- region (text)
+- revenueStage (text)
+- subscriptionTier (text)
+- signupDate (timestamp)
+
+Seed kpi_benchmarks table with this data:
+
+Industry: wellness
+- Occupancy Rate %: p10=35, p25=50, p50=65, p75=78, p90=88
+- Revenue per Guest (SGD): p10=150, p25=250, p50=400, p75=600, p90=900
+- Repeat Booking %: p10=15, p25=25, p50=38, p75=52, p90=65
+- Gross Margin %: p10=40, p25=52, p50=62, p75=72, p90=80
+
+Industry: consumer-products
+- Gross Margin %: p10=30, p25=42, p50=55, p75=65, p90=74
+- Sell-through Rate %: p10=45, p25=58, p50=70, p75=82, p90=92
+- Inventory Turns: p10=2, p25=3, p50=4.5, p75=6, p90=8
+- Return Rate %: p10=2, p25=5, p50=9, p75=14, p90=20
+
+Industry: membership
+- Monthly Churn %: p10=8, p25=5, p50=3, p75=1.8, p90=0.8
+- Utilisation %: p10=25, p25=38, p50=52, p75=67, p90=80
+- LTV/CAC Ratio: p10=1.2, p25=2, p50=3.2, p75=5, p90=8
+- Gross Margin %: p10=45, p25=58, p50=68, p75=76, p90=84
+
+Industry: professional-services
+- Utilisation Rate %: p10=45, p25=58, p50=68, p75=78, p90=86
+- Revenue per FTE (SGD k): p10=80, p25=120, p50=175, p75=250, p90=380
+- Project Gross Margin %: p10=25, p25=38, p50=50, p75=62, p90=72
+- Client Retention %: p10=55, p25=68, p50=78, p75=87, p90=94
+
+Industry: fnb
+- Food Cost %: p10=38, p25=32, p50=28, p75=24, p90=20
+- Labour Cost %: p10=42, p25=36, p50=30, p75=26, p90=22
+- Table Turns per Day: p10=1.5, p25=2.2, p50=3, p75=4, p90=5.5
+- Gross Margin %: p10=20, p25=30, p50=40, p75=50, p90=58
+
+Industry: ecommerce
+- Gross Margin %: p10=20, p25=32, p50=44, p75=56, p90=66
+- Customer Acquisition Cost (SGD): p10=80, p25=50, p50=30, p75=18, p90=10
+- Repeat Purchase Rate %: p10=12, p25=22, p50=32, p75=44, p90=58
+- Cart Abandonment %: p10=82, p25=75, p50=68, p75=60, p90=52
+
+Industry: saas
+- Gross Margin %: p10=55, p25=65, p50=74, p75=82, p90=88
+- Monthly Churn %: p10=8, p25=4, p50=2, p75=1, p90=0.5
+- LTV/CAC Ratio: p10=1.5, p25=2.5, p50=4, p75=6.5, p90=10
+- ARR Growth % YoY: p10=10, p25=25, p50=45, p75=80, p90=150
+
+Industry: other
+- Gross Margin %: p10=25, p25=38, p50=50, p75=62, p90=72
+- EBITDA %: p10=5, p25=12, p50=20, p75=30, p90=42
+- Revenue Growth % YoY: p10=5, p25=12, p50=22, p75=38, p90=65
+
+---
+
+## PAGE STRUCTURE & ROUTES
+
+### Public routes (no auth required):
+- / → Landing page
+- /login → Login page
+- /signup → Signup page
+
+### Authenticated routes (redirect to /login if not authed):
+- /onboarding → Guided onboarding (redirect to /dashboard if already completed)
+- /dashboard → Dashboard home
+- /dashboard/modelling → Financial Modelling module
+- /dashboard/accounts → Management Accounts module
+- /dashboard/comparables → Comparables & Benchmarking module
+- /dashboard/settings → Account settings + subscription
+
+### Admin route (separate, password protected):
+- /admin → Segment overview — table showing signups by industry, region, revenueStage, subscriptionTier with counts
+
+---
+
+## LANDING PAGE (/)
+
+Layout (top to bottom):
+
+### Nav bar
+- Logo: "Synergise" in primary colour, font-weight 700
+- Right side: "Sign In" ghost button + "Start Free Trial" primary button
+- Sticky on scroll, white background, border-bottom on scroll
+
+### Hero section
+- Headline: "Financial clarity, powered by intelligence."
+- Subheadline: "The financial co-pilot for founder-operators in Southeast Asia. Model your business, track performance, and benchmark against your peers — without needing a CFO."
+- Two CTAs: "Start Free Trial" (primary) + "See How It Works" (secondary, scrolls to features)
+- Right side: clean mockup illustration of the dashboard (use a placeholder grey box with "Dashboard Preview" label if image not available)
+
+### Social proof bar
+- "Built for founders in:" followed by industry tags: Wellness · Hospitality · Apparel · Memberships · Professional Services · E-commerce · SaaS
+
+### Features section (3 cards)
+Card 1 — Financial Modelling
+- Icon: BarChart3
+- Title: "Model your business, your way"
+- Body: "Industry-specific financial models built for how your business actually works. No generic spreadsheets — inputs designed for your vertical."
+
+Card 2 — Management Accounts
+- Icon: BookOpen
+- Title: "Know your numbers, every month"
+- Body: "Founder-lite P&L tracking that shows gross margin, burn rate, and profitability without requiring an accounting degree."
+
+Card 3 — Comparables
+- Icon: Target
+- Title: "See where you stand"
+- Body: "Benchmark your key metrics against real peer businesses in your industry and region. Know if your margins are strong or lagging."
+
+### Pricing section
+Two cards side by side, centred:
+
+Trial card:
+- Label: "Free Trial"
+- Price: "$0 for 14 days"
+- Features: Full access to all 3 modules, Up to 3 financial models, Basic benchmarking, Email support
+- CTA: "Start Free Trial" (secondary button)
+
+Professional card (highlighted with primary border):
+- Label: "Professional" + "Most Popular" badge
+- Price: "$29/month"
+- Features: Unlimited financial models, Full management accounts, Complete benchmarking with percentile charts, AI-powered analysis, PDF exports, Priority support
+- CTA: "Get Started" (primary button)
+
+### Footer
+- Left: "Synergise © 2026"
+- Right: "Made for founder-operators in Southeast Asia"
+
+---
+
+## SIGNUP PAGE (/signup)
+
+- Centred card layout, max-w-md
+- Fields: Full Name, Email, Password, Confirm Password
+- Primary CTA: "Create My Account"
+- Below form: "Already have an account? Sign in"
+- On success: create user in DB, log them in, redirect to /onboarding
+- Inline validation errors (no browser alerts)
+- Password minimum 8 characters
+
+---
+
+## LOGIN PAGE (/login)
+
+- Centred card layout, max-w-md
+- Fields: Email or Username, Password
+- Primary CTA: "Sign In"
+- Below form: "Don't have an account? Start free trial"
+- On success: if onboarding not completed → /onboarding, else → /dashboard
+- Inline error: "Incorrect email or password" on failure
+
+---
+
+## ONBOARDING (/onboarding)
+
+4-step guided flow. Progress bar at top showing steps 1–4.
+
+Step 1 — Welcome
+- Heading: "Welcome to Synergise, [First Name]"
+- Body: "Let's personalise your experience. It takes 60 seconds."
+- Single button: "Let's go →"
+
+Step 2 — Your Business
+- Heading: "Tell us about your business"
+- Fields:
+  - Business Name (text input)
+  - Industry (select dropdown — full list: Wellness & Lifestyle, Consumer Products & Apparel, Membership & Experiences, Professional Services, F&B & Hospitality, E-commerce & Retail, Technology & SaaS, Other)
+- Button: "Next →"
+
+Step 3 — Your Region & Scale
+- Heading: "Where are you based and how big is your business?"
+- Fields:
+  - Region (select — Singapore, Southeast Asia, Asia Pacific, Global, North America, Europe)
+  - Revenue Stage (select — Pre-revenue, Under SGD 500k, SGD 500k–2M, Over SGD 2M)
+- Button: "Next →"
+
+Step 4 — You're ready
+- Heading: "You're all set, [First Name]"
+- Body: "Your dashboard is personalised for [Industry] businesses in [Region]. Let's start with your first financial model."
+- Button: "Go to my Dashboard →"
+- On click: save onboarding_profile to DB, save to admin_segments, redirect to /dashboard
+
+---
+
+## DASHBOARD LAYOUT
+
+Persistent layout wrapping all /dashboard/* routes.
+
+### Sidebar (left, 240px wide, white background, right border)
+Top section:
+- Synergise logo
+- User's business name (from onboarding profile)
+- Subscription tier badge (Trial / Professional)
+
+Navigation items (with Lucide icons):
+- Home (LayoutDashboard icon) → /dashboard
+- Financial Modelling (BarChart3 icon) → /dashboard/modelling
+- Management Accounts (BookOpen icon) → /dashboard/accounts
+- Comparables (Target icon) → /dashboard/comparables
+- Settings (Settings icon) → /dashboard/settings
+
+Active item: primary colour background, white text, rounded-lg
+Inactive item: text-muted, hover:bg-primary/5
+
+Bottom section:
+- User's full name
+- "Sign Out" ghost button
+
+### Top bar (right of sidebar)
+- Page title (current module name)
+- Right side: "Upgrade to Professional" button if on trial tier
+
+### Main content area
+- background: --color-background (#F7F9F9)
+- padding: p-8
+- Sidebar collapses to hamburger menu on mobile
+
+---
+
+## DASHBOARD HOME (/dashboard)
+
+- Heading: "Good [morning/afternoon], [First Name]."
+- Subheading: "[Business Name] · [Industry] · [Region]"
+- Three module cards in a row (same as landing features cards but with "Open" buttons)
+- If trial: banner at top — "You have X days left in your trial. Upgrade to Professional to keep full access." with Upgrade button
+
+---
+
+## FINANCIAL MODELLING MODULE (/dashboard/modelling)
+
+- Page heading: "Financial Modelling"
+- Subheading: "Build a financial model for your [Industry] business"
+
+Industry-specific input forms. Show the correct form based on user's onboarding industry.
+
+### Wellness & Lifestyle inputs:
+- Number of rooms/spaces
+- Average occupancy rate (%)
+- Average revenue per guest (SGD)
+- Sessions per day
+- Average staff cost per month (SGD)
+- Fixed costs per month (SGD)
+- Calculate button → outputs: Monthly Revenue, Gross Profit, EBITDA estimate, Break-even occupancy rate
+
+### Consumer Products & Apparel inputs:
+- Average selling price per unit (SGD)
+- Units sold per month
+- Cost of goods per unit (SGD)
+- Returns rate (%)
+- Marketing spend per month (SGD)
+- Fixed overhead per month (SGD)
+- Calculate button → outputs: Monthly Revenue, Gross Margin %, Net Margin %, Break-even units
+
+### Membership & Experiences inputs:
+- Number of active members
+- Monthly membership fee (SGD)
+- Monthly churn rate (%)
+- Customer acquisition cost (SGD)
+- Fixed costs per month (SGD)
+- Variable cost per member per month (SGD)
+- Calculate button → outputs: MRR, ARR, LTV, LTV/CAC ratio, Break-even members
+
+### Professional Services inputs:
+- Number of billable staff / consultants
+- Average billable rate per hour (SGD)
+- Target utilisation rate (%)
+- Average hours per month per person
+- Fixed overhead per month (SGD)
+- Calculate button → outputs: Monthly Revenue capacity, Gross Margin %, Revenue per FTE
+
+### F&B & Hospitality inputs:
+- Number of seats
+- Average covers per day
+- Average spend per cover (SGD)
+- Food cost % of revenue
+- Labour cost % of revenue
+- Fixed costs per month (SGD)
+- Calculate button → outputs: Monthly Revenue, Gross Profit, EBITDA, Break-even covers per day
+
+### E-commerce & Retail inputs:
+- Monthly website visitors
+- Conversion rate (%)
+- Average order value (SGD)
+- Cost of goods % of revenue
+- Marketing spend per month (SGD)
+- Fixed costs per month (SGD)
+- Calculate button → outputs: Monthly Revenue, Gross Margin %, CAC, Break-even orders
+
+### SaaS / Technology inputs:
+- Number of paying customers
+- Average revenue per user per month (SGD)
+- Monthly churn rate (%)
+- CAC (SGD)
+- Monthly fixed costs (SGD)
+- Gross margin % (infrastructure costs)
+- Calculate button → outputs: MRR, ARR, LTV, LTV/CAC, Months to break even
+
+### Other inputs:
+- Monthly revenue (SGD)
+- COGS (SGD)
+- Operating expenses (SGD)
+- Calculate button → outputs: Gross Profit, Gross Margin %, EBITDA, Net Margin %
+
+Display outputs in a clean results card below the form. Each output is a metric tile: label + value + brief explanation tooltip.
+
+Save each calculation as a financial_model record in the DB.
+
+---
+
+## MANAGEMENT ACCOUNTS MODULE (/dashboard/accounts)
+
+- Page heading: "Management Accounts"
+- Subheading: "Track your business performance, month by month"
+
+### Input form (monthly P&L entry):
+- Period selector (Month + Year dropdown)
+- Revenue (SGD)
+- Cost of Goods Sold / Direct Costs (SGD)
+- [Auto-calculates: Gross Profit, Gross Margin %]
+- Operating Expenses — 4 line items: Salaries, Marketing, Rent/Facilities, Other
+- [Auto-calculates: Total OpEx, EBITDA, EBITDA %]
+- Save button → stores to management_accounts table
+
+### Display:
+- Current month summary card: Revenue, Gross Margin %, EBITDA in three tiles
+- Table of saved periods (most recent first): Period, Revenue, Gross Margin %, EBITDA %
+- Simple line chart (Recharts) showing Revenue and Gross Profit trend over saved periods
+
+---
+
+## COMPARABLES MODULE (/dashboard/comparables)
+
+- Page heading: "Industry Benchmarks"
+- Subheading: "See how your business compares to peers in your vertical"
+
+### Consent gate:
+- Card with privacy explanation: "Benchmarking uses anonymised, aggregated data. Your specific figures are never shared. You control your data and can opt out anytime."
+- Toggle: "I consent to anonymous data sharing for benchmarking purposes"
+- Must be enabled to see benchmarks
+
+### Cohort selector (shown after consent):
+- Industry (pre-filled from onboarding profile, editable)
+- Region (pre-filled from onboarding profile, editable)
+- Apply button
+
+### Benchmark display (after cohort applied):
+- Pull benchmark data from kpi_benchmarks table for selected industry + region
+- For each metric, show:
+  - Metric name
+  - Percentile band bar (P10 to P90) using Recharts BarChart
+  - "Your value" marker (pull from management_accounts or financial_models if available, else show "Add your data to see your position" prompt with link to Management Accounts)
+  - Your percentile label (e.g. "You are in the 68th percentile")
+
+---
+
+## SETTINGS MODULE (/dashboard/settings)
+
+Two tabs: Account and Subscription
+
+### Account tab:
+- Display: Full Name, Email, Business Name, Industry, Region, Revenue Stage
+- Edit button → inline edit form for each field
+- Change password section
+
+### Subscription tab:
+- Current plan display (Trial or Professional)
+- If Trial: days remaining + upgrade card (same as landing pricing section)
+- If Professional: plan details + cancel subscription option
+- Stripe checkout integration (install and wire up but use placeholder price IDs — VITE_STRIPE_PROFESSIONAL_PRICE_ID from env)
+
+---
+
+## ADMIN PAGE (/admin)
+
+Simple password-protected page (hardcoded admin password via ADMIN_PASSWORD env variable).
+
+Display a table with these columns:
+- Signup Date
+- Full Name
+- Email
+- Industry
+- Region
+- Revenue Stage
+- Subscription Tier
+
+Pull from admin_segments joined with users table.
+Add summary counts at top:
+- Total signups
+- By industry (counts)
+- By region (counts)
+- By subscription tier (Trial vs Professional counts)
+
+---
+
+## AUTHENTICATION
+
+- Use Passport.js with local strategy
+- Passwords hashed with bcrypt (10 rounds)
+- Sessions via express-session + memorystore
+- Protected routes: redirect to /login if not authenticated
+- After login/signup: check if onboarding_profile exists → if not, redirect to /onboarding → else /dashboard
+- POST /api/auth/signup — creates user, logs in, returns user object
+- POST /api/auth/login — authenticates, returns user object
+- POST /api/auth/logout — destroys session
+- GET /api/auth/me — returns current user or 401
+
+---
+
+## API ROUTES
+
+POST /api/auth/signup
+POST /api/auth/login
+POST /api/auth/logout
+GET /api/auth/me
+
+POST /api/onboarding — save onboarding profile + admin_segments entry
+GET /api/onboarding — get current user's onboarding profile
+
+POST /api/models — save financial model
+GET /api/models — get all models for current user
+
+POST /api/accounts — save monthly P&L entry
+GET /api/accounts — get all P&L entries for current user
+
+GET /api/benchmarks?industry=wellness&region=sg — return benchmark data from kpi_benchmarks table
+
+GET /api/admin/segments — return all admin_segments data (admin auth required)
+
+---
+
+## ENVIRONMENT VARIABLES NEEDED
+
+DATABASE_URL — Neon PostgreSQL connection string
+ANTHROPIC_API_KEY — Claude AI (optional at build time, graceful fallback)
+STRIPE_SECRET_KEY — Stripe (optional at build time)
+VITE_STRIPE_PROFESSIONAL_PRICE_ID — Stripe price ID (optional at build time)
+SESSION_SECRET — random string for session signing
+ADMIN_PASSWORD — password for /admin page
+
+---
+
+## IMPORTANT BUILD RULES
+
+1. Every page must be fully functional with no blank screens or "Coming Soon" placeholders
+2. All forms must have inline validation using React Hook Form + Zod
+3. All API calls must handle loading and error states gracefully
+4. If AI or Stripe keys are not set, features degrade gracefully — never crash
+5. Mobile responsive across all pages (sidebar becomes hamburger on mobile)
+6. No hardcoded user IDs, passwords, or secrets in any file
+7. After build, confirm the app runs with npm run dev with zero console errors
