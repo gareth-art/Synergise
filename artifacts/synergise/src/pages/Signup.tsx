@@ -1,78 +1,81 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSetAuth } from "@/hooks/use-auth";
 
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 
-const signupSchema = z.object({
-  fullName: z.string().min(1, { message: "Full name is required" }),
-  email: z.string().min(1, { message: "Email is required" }).email({ message: "Please enter a valid email address" }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters" }),
-  confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
 export default function Signup() {
   const [, setLocation] = useLocation();
+  const setAuth = useSetAuth();
   const queryClient = useQueryClient();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<z.infer<typeof signupSchema>>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { fullName: "", email: "", password: "", confirmPassword: "" },
-  });
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function onSubmit(values: z.infer<typeof signupSchema>) {
-    setErrorMsg(null);
-    setIsSubmitting(true);
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!fullName.trim()) e.fullName = "Full name is required";
+    if (!email.trim()) e.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = "Enter a valid email address";
+    if (!password) e.password = "Password is required";
+    else if (password.length < 8) e.password = "Password must be at least 8 characters";
+    if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    if (!validate()) return;
+
+    setIsLoading(true);
+    setServerError(null);
+
     try {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          fullName: values.fullName,
-          email: values.email,
-          password: values.password,
-          confirmPassword: values.confirmPassword,
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          confirmPassword,
         }),
       });
+
       const data = await res.json();
+
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Failed to create account. Please try again.");
+        setServerError(data.error ?? "Signup failed. Please try again.");
         return;
       }
-      // Populate the auth cache so RequireAuth passes immediately
-      queryClient.setQueryData(["/api/auth/me"], data);
-      // Clear any stale onboarding cache so the guard starts fresh
-      queryClient.removeQueries({ queryKey: ["/api/onboarding"] });
-      // Navigate — no login detour, ever
+
+      // Populate auth cache — server returns the user object directly
+      setAuth(data);
+      // Clear any stale onboarding cache so RequireOnboarding starts fresh
+      queryClient.removeQueries({ queryKey: ["onboarding-profile"] });
+      // Navigate straight to onboarding — never to login
       setLocation("/onboarding");
     } catch {
-      setErrorMsg("Connection error. Please try again.");
+      setServerError("Connection error. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
-  }
+  };
 
+  // NO useEffect, NO auth check on mount — always render the form
   return (
     <div className="flex min-h-screen items-center justify-center bg-synergise-background p-4 font-sans">
       <Card className="w-full max-w-md shadow-lg border-synergise-border">
@@ -84,62 +87,80 @@ export default function Signup() {
           <CardDescription className="text-synergise-text-muted">Start your 14-day free trial</CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {errorMsg && (
-                <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-600">
-                  <AlertDescription>{errorMsg}</AlertDescription>
-                </Alert>
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {serverError && (
+              <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-600">
+                <AlertDescription>{serverError}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="fullName" className="text-synergise-text">Full Name</Label>
+              <Input
+                id="fullName"
+                placeholder="Jane Lim"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="border-synergise-border focus-visible:ring-synergise-primary"
+                autoComplete="name"
+              />
+              {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-synergise-text">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="border-synergise-border focus-visible:ring-synergise-primary"
+                autoComplete="email"
+              />
+              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="password" className="text-synergise-text">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="border-synergise-border focus-visible:ring-synergise-primary"
+                autoComplete="new-password"
+              />
+              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="confirmPassword" className="text-synergise-text">Confirm Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="border-synergise-border focus-visible:ring-synergise-primary"
+                autoComplete="new-password"
+              />
+              {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating Account…</>
+              ) : (
+                "Create My Account & Start Free Trial"
               )}
-              <FormField control={form.control} name="fullName" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-synergise-text">Full Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Jane Lim" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-synergise-text">Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="you@company.com" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="password" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-synergise-text">Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="confirmPassword" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-synergise-text">Confirm Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <Button
-                type="submit"
-                className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating Account…</>
-                ) : (
-                  "Create My Account & Start Free Trial"
-                )}
-              </Button>
-            </form>
-          </Form>
+            </Button>
+          </form>
         </CardContent>
         <CardFooter className="flex justify-center border-t border-synergise-border pt-6">
           <p className="text-sm text-synergise-text-muted">

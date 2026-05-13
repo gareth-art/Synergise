@@ -35,15 +35,16 @@ const REVENUE_STAGES = ["Pre-revenue", "Under SGD 500k", "SGD 500k–2M", "Over 
 
 function useOnboardingStatus() {
   return useQuery({
-    queryKey: ["/api/onboarding"],
+    queryKey: ["onboarding-profile"],
     queryFn: async () => {
       const res = await fetch("/api/onboarding", { credentials: "include" });
       if (res.status === 404) return null;
-      if (!res.ok) throw new Error("Failed to fetch onboarding status");
+      if (!res.ok) return null;
       return res.json();
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
     retry: false,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -125,9 +126,9 @@ export default function Onboarding() {
         return;
       }
 
-      // Success — refresh both onboarding and auth caches, then navigate
-      queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      // Success — refresh caches and navigate
+      queryClient.invalidateQueries({ queryKey: ["onboarding-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
       setLocation("/dashboard");
     } catch {
       setError("Connection error. Please check your internet and try again.");

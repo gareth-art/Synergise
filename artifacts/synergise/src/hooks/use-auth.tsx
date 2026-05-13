@@ -1,10 +1,9 @@
-import { createContext, useContext, ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface User {
   id: number;
-  fullName: string;
   email: string;
+  fullName: string;
   username: string;
   subscriptionTier: string;
   trialStartDate?: string | null;
@@ -13,48 +12,34 @@ export interface User {
   creditsResetDate?: string | null;
 }
 
-interface AuthContextType {
-  user: User | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  isLoading: true,
-  isAuthenticated: false,
-});
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: user, isLoading } = useQuery<User | null>({
-    queryKey: ["/api/auth/me"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      // 401 means not logged in — return null, not an error
-      if (res.status === 401) return null;
-      if (!res.ok) throw new Error("Auth check failed");
-      return res.json();
-    },
-    // Cache for 60s — prevents immediate background refetch after setQueryData
-    staleTime: 60 * 1000,
-    retry: false,
-  });
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user: user ?? null,
-        isLoading,
-        // Only check !!user — never use !error, which causes false logouts
-        // when a background refetch transiently fails
-        isAuthenticated: !!user,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+async function fetchMe(): Promise<User | null> {
+  const res = await fetch("/api/auth/me", { credentials: "include" });
+  if (res.status === 401) return null;
+  if (!res.ok) return null; // any error = treat as logged out, never throw
+  return res.json();
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const { data: user, isLoading } = useQuery<User | null>({
+    queryKey: ["auth-user"],
+    queryFn: fetchMe,
+    staleTime: 10 * 60 * 1000,    // 10 minutes — no background refetch after setQueryData
+    gcTime: 15 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,         // do NOT refetch if data already in cache
+  });
+
+  return {
+    user: user ?? null,
+    isLoading,
+    isAuthenticated: !!user,
+  };
+}
+
+export function useSetAuth() {
+  const queryClient = useQueryClient();
+  return (user: User | null) => {
+    queryClient.setQueryData(["auth-user"], user);
+  };
 }

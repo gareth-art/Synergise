@@ -2,7 +2,6 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
@@ -16,75 +15,48 @@ import Comparables from "@/pages/dashboard/Comparables";
 import Settings from "@/pages/dashboard/Settings";
 import CfoMetrics from "@/pages/dashboard/CfoMetrics";
 import UnitEconomics from "@/pages/dashboard/UnitEconomics";
-import { ProtectedRoute, RequireOnboarding } from "@/components/ProtectedRoute";
+import { RequireAuth } from "@/components/RequireAuth";
+import { RequireOnboarding } from "@/components/RequireOnboarding";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
-      {/* Public routes — no auth wrapper */}
+      {/* Public — no auth wrapper */}
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/admin" component={Admin} />
 
-      {/* Onboarding — auth required, but no onboarding check */}
+      {/* Onboarding — auth required, no onboarding check */}
       <Route path="/onboarding">
-        <ProtectedRoute>
+        <RequireAuth>
           <Onboarding />
-        </ProtectedRoute>
+        </RequireAuth>
       </Route>
 
       {/* Dashboard routes — auth + onboarding required */}
       <Route path="/dashboard">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <Dashboard />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><Dashboard /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/modelling">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <Modelling />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><Modelling /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/accounts">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <Accounts />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><Accounts /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/comparables">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <Comparables />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><Comparables /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/cfo-metrics">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <CfoMetrics />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><CfoMetrics /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/unit-economics">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <UnitEconomics />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><UnitEconomics /></RequireOnboarding></RequireAuth>
       </Route>
       <Route path="/dashboard/settings">
-        <ProtectedRoute>
-          <RequireOnboarding>
-            <Settings />
-          </RequireOnboarding>
-        </ProtectedRoute>
+        <RequireAuth><RequireOnboarding><Settings /></RequireOnboarding></RequireAuth>
       </Route>
 
       <Route component={NotFound} />
@@ -95,14 +67,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </AuthProvider>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

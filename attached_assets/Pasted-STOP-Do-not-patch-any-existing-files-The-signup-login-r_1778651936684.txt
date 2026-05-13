@@ -1,0 +1,352 @@
+STOP. Do not patch any existing files. The signup → login redirect bug has persisted through multiple fix attempts. We are going to replace the entire auth flow with a minimal, hardened implementation.
+
+---
+
+## STEP 1: SHOW ME THE CURRENT STATE FIRST
+
+Before changing anything, open these files and paste the FULL current content of each:
+1. use-auth.tsx (or useAuth hook file)
+2. App.tsx (just the Router/Switch section)
+3. signup.tsx (just the onSubmit handler and any useEffect)
+4. The ProtectedRoute or RequireAuth component (full file)
+
+Do not change anything yet. Just show me the code.
+
+---
+
+## STEP 2: REPLACE WITH THIS EXACT IMPLEMENTATION
+
+After showing me the current state, replace these files completely with the versions below. Do not merge, do not patch — full replacement only.
+
+### FILE: src/hooks/use-auth.tsx (FULL REPLACEMENT)
+
+```tsx
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+interface User {
+  id: number;
+  email: string;
+  fullName: string;
+  username: string;
+  subscriptionTier: 'trial' | 'professional' | 'cfo-suite';
+  aiCreditsRemaining: number;
+}
+
+async function fetchMe(): Promise<User | null> {
+  const res = await fetch('/api/auth/me', { credentials: 'include' });
+  if (res.status === 401) return null;
+  if (!res.ok) return null; // any error = treat as logged out, never throw
+  return res.json();
+}
+
+export function useAuth() {
+  const { data: user, isLoading } = useQuery<User | null>({
+    queryKey: ['auth-user'],
+    queryFn: fetchMe,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 15 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false, // do NOT refetch if data exists in cache
+  });
+
+  return {
+    user: user ?? null,
+    isLoading,
+    isAuthenticated: !!user,
+  };
+}
+
+export function useSetAuth() {
+  const queryClient = useQueryClient();
+  return (user: User | null) => {
+    queryClient.setQueryData(['auth-user'], user);
+  };
+}
+```
+
+### FILE: src/components/RequireAuth.tsx (FULL REPLACEMENT)
+
+```tsx
+import { useEffect } from 'react';
+import { useLocation } from 'wouter';
+import { useAuth } from '@/hooks/use-auth';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+
+export function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation('/login');
+    }
+  }, [isLoading, user]);
+
+  if (isLoading) return <LoadingSpinner message="Loading..." />;
+  if (!user) return <LoadingSpinner message="Redirecting..." />;
+  return <>{children}</>;
+}
+```
+
+### FILE: src/components/RequireOnboarding.tsx (FULL REPLACEMENT)
+
+```tsx
+import { useEffect } from 'react';
+import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+
+async function fetchOnboarding() {
+  const res = await fetch('/api/onboarding', { credentials: 'include' });
+  if (res.status === 404) return null;
+  if (res.status === 401) return undefined; // not authenticated yet
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export function RequireOnboarding({ children }: { children: React.ReactNode }) {
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['onboarding-profile'],
+    queryFn: fetchOnboarding,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && profile === null) {
+      setLocation('/onboarding');
+    }
+  }, [isLoading, profile]);
+
+  if (isLoading) return <LoadingSpinner message="Loading your dashboard..." />;
+  if (!profile) return <LoadingSpinner message="Redirecting..." />;
+  return <>{children}</>;
+}
+```
+
+### FILE: src/pages/Signup.tsx (FULL REPLACEMENT — keep existing JSX/form layout, replace ONLY the logic)
+
+Replace the entire component logic with this. Keep all the existing form JSX (labels, inputs, button styles) — only replace the hooks, handlers, and effects:
+
+```tsx
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSetAuth } from '@/hooks/use-auth';
+
+export default function Signup() {
+  const [, setLocation] = useLocation();
+  const setAuth = useSetAuth();
+  const queryClient = useQueryClient();
+  
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Validation errors
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!fullName.trim()) newErrors.fullName = 'Full name is required';
+    if (!email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Enter a valid email address';
+    if (!password) newErrors.password = 'Password is required';
+    else if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
+    if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          password,
+          username: email.trim().toLowerCase()
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Signup failed. Please try again.');
+        return;
+      }
+
+      // Set auth — use the new queryKey 'auth-user'
+      setAuth(data.user);
+      // Clear any stale onboarding cache
+      queryClient.removeQueries({ queryKey: ['onboarding-profile'] });
+      // Navigate to onboarding
+      setLocation('/onboarding');
+
+    } catch {
+      setError('Connection error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // NO useEffect here. NO redirect for authenticated users. NO auth check on mount.
+  // This page is always accessible regardless of auth state.
+
+  return (
+    // ... keep existing JSX form layout
+    // Wire: onSubmit={handleSubmit} on the form
+    // Wire: value/onChange for each field using the useState values above
+    // Wire: show errors[field] below each input
+    // Wire: show error state (general error) above submit button
+    // Wire: disabled={isLoading} on submit button
+    // Wire: button text = isLoading ? "Creating account..." : "Create My Account & Start Free Trial"
+  );
+}
+```
+
+### FILE: src/pages/Login.tsx (FULL REPLACEMENT — logic only, keep JSX)
+
+```tsx
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { useSetAuth } from '@/hooks/use-auth';
+import { useQueryClient } from '@tanstack/react-query';
+
+export default function Login() {
+  const [, setLocation] = useLocation();
+  const setAuth = useSetAuth();
+  const queryClient = useQueryClient();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Step 1: Login
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
+      });
+
+      const loginData = await loginRes.json();
+
+      if (!loginRes.ok) {
+        setError('Incorrect email or password. Please try again.');
+        return;
+      }
+
+      // Step 2: Set auth state
+      setAuth(loginData.user);
+
+      // Step 3: Check onboarding — with credentials
+      const onboardingRes = await fetch('/api/onboarding', {
+        credentials: 'include'
+      });
+
+      // Step 4: Clear stale cache and navigate
+      queryClient.removeQueries({ queryKey: ['onboarding-profile'] });
+
+      if (onboardingRes.ok) {
+        const profile = await onboardingRes.json();
+        queryClient.setQueryData(['onboarding-profile'], profile);
+        setLocation('/dashboard');
+      } else {
+        // 404 = not done, anything else = default to dashboard
+        setLocation(onboardingRes.status === 404 ? '/onboarding' : '/dashboard');
+      }
+
+    } catch {
+      setError('Connection error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // NO useEffect. NO auth check on mount. Always render the login form.
+
+  return (
+    // ... keep existing JSX
+    // Wire: onSubmit={handleSubmit}
+    // Wire: value/onChange for email and password
+    // Wire: show error above submit button
+    // Wire: disabled={isLoading} on button
+    // Wire: button text = isLoading ? "Signing in..." : "Sign In"
+  );
+}
+```
+
+### FILE: src/App.tsx — UPDATE ROUTE STRUCTURE ONLY
+
+Find the Router/Switch section and ensure it matches exactly:
+
+```tsx
+<Switch>
+  <Route path="/" component={Landing} />
+  <Route path="/login" component={Login} />
+  <Route path="/signup" component={Signup} />
+  <Route path="/onboarding">
+    <RequireAuth>
+      <Onboarding />
+    </RequireAuth>
+  </Route>
+  <Route path="/admin" component={Admin} />
+  <Route path="/dashboard/:rest*">
+    <RequireAuth>
+      <RequireOnboarding>
+        <DashboardLayout />
+      </RequireOnboarding>
+    </RequireAuth>
+  </Route>
+  <Route component={NotFound} />
+</Switch>
+```
+
+---
+
+## STEP 3: UPDATE ALL QUERY KEY REFERENCES
+
+The auth query key changed from ['/api/auth/me'] to ['auth-user'].
+The onboarding query key changed from ['/api/onboarding'] to ['onboarding-profile'].
+
+Search the entire codebase for any remaining references to:
+- queryKey: ['/api/auth/me'] → replace with ['auth-user']
+- queryKey: ['/api/onboarding'] → replace with ['onboarding-profile']
+
+This ensures all components using these queries get consistent cache data.
+
+---
+
+## STEP 4: VERIFY
+
+Walk through this flow in the browser:
+
+1. /signup → fill form → submit
+   → Network tab: POST /api/auth/signup returns 200 with user object ✅
+   → Query cache: 'auth-user' contains the user ✅
+   → Navigation: lands on /onboarding ✅
+   → NO call to /api/auth/me immediately after ✅
+

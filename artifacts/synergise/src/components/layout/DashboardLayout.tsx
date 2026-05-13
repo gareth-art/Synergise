@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useLogout, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useLogout } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -113,7 +113,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
-        queryClient.setQueryData(getGetMeQueryKey(), null);
+        queryClient.setQueryData(["auth-user"], null);
         setLocation("/");
       },
     });
