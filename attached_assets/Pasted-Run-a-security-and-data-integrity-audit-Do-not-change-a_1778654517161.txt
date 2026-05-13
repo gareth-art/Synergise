@@ -1,0 +1,111 @@
+Run a security and data integrity audit. Do not change any code. Report only — findings and pass/fail for each check.
+
+DO NOT modify any auth files: use-auth.tsx, RequireAuth.tsx, RequireOnboarding.tsx, App.tsx, Login.tsx, Signup.tsx, Onboarding.tsx.
+
+---
+
+## AUDIT 1: DATA ISOLATION — CRITICAL
+
+For every backend route that returns user data, confirm it filters by the authenticated user's ID.
+
+Check each of these routes and confirm they include WHERE userId = req.user.id:
+- GET /api/onboarding
+- GET /api/models (financial models)
+- POST /api/models
+- GET /api/accounts (management accounts)
+- POST /api/accounts
+- GET /api/cfo-inputs
+- POST /api/cfo-inputs
+- GET /api/cfo-metrics/:period
+- GET /api/unit-economics
+- POST /api/unit-economics
+- GET /api/scenarios
+
+For each route report:
+✅ PASS — filters by req.user.id
+❌ FAIL — does NOT filter by userId (returns all users' data — critical security issue)
+⚠️ MISSING — route does not exist
+
+---
+
+## AUDIT 2: AUTHENTICATION GUARD ON ALL PROTECTED ROUTES
+
+Every route above must reject unauthenticated requests with 401.
+
+For each route, confirm requireAuth middleware is applied.
+Report ✅ PASS or ❌ FAIL.
+
+---
+
+## AUDIT 3: PASSWORD SECURITY
+
+In the POST /api/auth/signup route:
+- Confirm password is hashed with bcrypt before storing ✅/❌
+- Confirm the raw password is never stored or logged ✅/❌
+- Confirm bcrypt rounds >= 10 ✅/❌
+
+In POST /api/auth/login:
+- Confirm bcrypt.compare() is used (not plain string comparison) ✅/❌
+
+---
+
+## AUDIT 4: ADMIN ROUTE SECURITY
+
+The /admin page and /api/admin/* routes:
+- Confirm they are protected by a password check ✅/❌
+- Confirm the password is read from ADMIN_PASSWORD env variable, not hardcoded ✅/❌
+- Confirm regular logged-in users cannot access admin routes ✅/❌
+
+---
+
+## AUDIT 5: DATA CAPTURE VERIFICATION
+
+Confirm these database tables exist and have the correct columns:
+- users (id, email, fullName, username, password, subscriptionTier, createdAt)
+- onboarding_profiles (id, userId, businessName, industry, region, revenueStage, onboardingCompletedAt)
+- admin_segments (id, userId, industry, region, revenueStage, subscriptionTier, signupDate)
+- financial_models (id, userId, industry, inputs, outputs, createdAt)
+- management_accounts (id, userId, period, revenue, grossProfit, ebitda, createdAt)
+
+Run: SELECT table_name, column_name FROM information_schema.columns 
+WHERE table_schema = 'public' 
+ORDER BY table_name, ordinal_position;
+
+Paste the output.
+
+---
+
+## AUDIT 6: SESSION SECURITY
+
+In the session config confirm:
+- httpOnly: true (prevents JS from reading the cookie) ✅/❌
+- secure: false for dev / true for production ✅/❌
+- sameSite: 'lax' ✅/❌
+- Sessions stored in PostgreSQL (not MemoryStore) ✅/❌
+- SESSION_SECRET is read from environment variable, not hardcoded ✅/❌
+
+---
+
+## AUDIT 7: LIVE DATA TEST — CREATE TWO USERS AND VERIFY ISOLATION
+
+1. Create test user A (testA@test.com) — complete onboarding with industry "Wellness & Lifestyle"
+2. Create test user B (testB@test.com) — complete onboarding with industry "Technology & SaaS"
+3. As user A: create one financial model with recognisable inputs
+4. As user B: call GET /api/models — confirm user A's model does NOT appear
+5. As user A: call GET /api/models — confirm only user A's model appears
+
+Report: ✅ Data isolation confirmed or ❌ Data leak detected
+
+---
+
+## REPORT FORMAT:
+
+Audit 1 — Data Isolation: [table of routes with PASS/FAIL]
+Audit 2 — Auth Guards: [table with PASS/FAIL]  
+Audit 3 — Password Security: [PASS/FAIL per check]
+Audit 4 — Admin Security: [PASS/FAIL per check]
+Audit 5 — Database Schema: [paste actual column output]
+Audit 6 — Session Security: [PASS/FAIL per check]
+Audit 7 — Live Isolation Test: [PASS/FAIL with evidence]
+
+Flag any FAIL as CRITICAL if it represents a data leak or security vulnerability.
