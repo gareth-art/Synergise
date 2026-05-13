@@ -1,0 +1,176 @@
+Replace the entire multi-step onboarding wizard with a single-page onboarding form. Full replacement of Onboarding.tsx — do not patch, rewrite the whole file.
+
+---
+
+## THE NEW ONBOARDING PAGE
+
+### Layout:
+- Full screen: min-h-screen, background #F7F9F9, flex items-center justify-center, px-4 py-12
+- Single card: w-full max-w-lg, white background, border border-gray-200, rounded-2xl, shadow-md, p-8
+- No progress bar, no steps, no multi-step state
+
+### Header (inside card, top):
+- Synergise logo text: "Synergise" in primary colour (#0D7377), font-bold text-xl, centered, mb-6
+- Heading: "Welcome to Synergise, [firstName]! 👋"
+  - firstName = first word of user's fullName from auth state
+  - text-2xl font-bold text-gray-900, text-center, mb-1
+- Subheading: "Tell us about your business so we can personalise your experience."
+  - text-sm text-gray-500, text-center, mb-8
+
+### Form fields (stacked, gap-5 between each):
+
+Field 1 — Business Name
+- Label: "Business Name" (required *)
+- Input: text, placeholder "e.g. Ayurvana Wellness"
+- Full width
+
+Field 2 — Industry
+- Label: "Industry" (required *)
+- Select dropdown with these options (in this order):
+  - "" → "Select your industry..." (disabled placeholder)
+  - "Wellness & Lifestyle"
+  - "Consumer Products & Apparel"
+  - "Membership & Experiences"
+  - "Professional Services"
+  - "F&B & Hospitality"
+  - "E-commerce & Retail"
+  - "Technology & SaaS"
+  - "Other"
+
+Field 3 — Region
+- Label: "Primary Region" (required *)
+- Select dropdown:
+  - "" → "Select your region..." (disabled placeholder)
+  - "Singapore"
+  - "Southeast Asia"
+  - "Asia Pacific"
+  - "North America"
+  - "Europe"
+  - "Global"
+
+Field 4 — Revenue Stage
+- Label: "Annual Revenue" (required *)
+- Select dropdown:
+  - "" → "Select revenue stage..." (disabled placeholder)
+  - "Pre-revenue"
+  - "Under SGD 500k"
+  - "SGD 500k – 2M"
+  - "Over SGD 2M"
+
+### Validation:
+- All 4 fields required
+- Inline error messages below each field if empty on submit: "This field is required"
+- No browser native validation (use React state)
+
+### Submit button:
+- Full width, bg-primary, white text, rounded-lg, py-3, font-semibold
+- Text: "Set Up My Dashboard →"
+- Loading state: disabled + spinner + "Setting up..." text
+- Positioned below the form fields with mt-6
+
+### Submit logic (handleSubmit):
+```tsx
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  // Validate
+  const newErrors: Record<string, string> = {};
+  if (!businessName.trim()) newErrors.businessName = 'This field is required';
+  if (!industry) newErrors.industry = 'This field is required';
+  if (!region) newErrors.region = 'This field is required';
+  if (!revenueStage) newErrors.revenueStage = 'This field is required';
+  
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    return;
+  }
+
+  setIsSubmitting(true);
+  setSubmitError(null);
+
+  try {
+    const response = await fetch('/api/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ businessName, industry, region, revenueStage })
+    });
+
+    if (response.status === 401) {
+      setSubmitError('Your session expired. Please sign in again.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setSubmitError(data.error || 'Something went wrong. Please try again.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Success
+    queryClient.removeQueries({ queryKey: ['onboarding-profile'] });
+    setLocation('/dashboard');
+
+  } catch {
+    setSubmitError('Connection error. Please check your internet and try again.');
+    setIsSubmitting(false);
+  }
+};
+```
+
+### Error display:
+- If submitError is set: show a red-bordered card above the submit button:
+```tsx
+<div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mt-4">
+  {submitError}
+  {submitError?.includes('session') && (
+    <button 
+      onClick={() => setLocation('/login')}
+      className="underline ml-1 font-medium"
+    >
+      Sign in again
+    </button>
+  )}
+</div>
+```
+
+### Session keepalive:
+Add this to keep the session alive while the user is on this page:
+```tsx
+useEffect(() => {
+  const ping = setInterval(() => {
+    fetch('/api/auth/me', { credentials: 'include' }).catch(() => {});
+  }, 3 * 60 * 1000); // every 3 minutes
+  return () => clearInterval(ping);
+}, []);
+```
+
+### Draft save (sessionStorage):
+Save to sessionStorage on every field change, restore on mount:
+```tsx
+// Save on change
+useEffect(() => {
+  sessionStorage.setItem('onboarding_draft', JSON.stringify({ businessName, industry, region, revenueStage }));
+}, [businessName, industry, region, revenueStage]);
+
+// Restore on mount
+useEffect(() => {
+  try {
+    const draft = sessionStorage.getItem('onboarding_draft');
+    if (draft) {
+      const p = JSON.parse(draft);
+      if (p.businessName) setBusinessName(p.businessName);
+      if (p.industry) setIndustry(p.industry);
+      if (p.region) setRegion(p.region);
+      if (p.revenueStage) setRevenueStage(p.revenueStage);
+    }
+  } catch {}
+}, []);
+
+// Clear on success (before setLocation)
+sessionStorage.removeItem('onboarding_draft');
+```
+
+### Field styling (apply to all inputs and selects):
