@@ -10,11 +10,13 @@ import {
   Calculator,
   BookOpen,
   BarChart2,
-  Settings,
+  Settings as SettingsIcon,
   LogOut,
   Menu,
   TrendingUp,
   Zap,
+  Sparkles,
+  PieChart,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
@@ -99,6 +101,55 @@ function CreditsModal({
   );
 }
 
+const TIER_LABELS: Record<string, string> = {
+  trial: "Trial",
+  professional: "Professional",
+  "cfo-suite": "CFO Suite",
+};
+
+const TIER_STYLES: Record<string, string> = {
+  trial: "bg-amber-50 text-amber-700 border-amber-200",
+  professional: "bg-synergise-accent text-synergise-primary border-synergise-primary/20",
+  "cfo-suite": "bg-synergise-primary text-white border-synergise-primary",
+};
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+interface NavGroup {
+  label: string | null;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [{ href: "/dashboard", label: "Home", icon: LayoutDashboard }],
+  },
+  {
+    label: "Financial Tools",
+    items: [
+      { href: "/dashboard/modelling", label: "Modelling", icon: Calculator },
+      { href: "/dashboard/accounts", label: "Accounts", icon: BookOpen },
+      { href: "/dashboard/unit-economics", label: "Unit Economics", icon: PieChart },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { href: "/dashboard/cfo-metrics", label: "CFO Metrics", icon: TrendingUp },
+      { href: "/dashboard/comparables", label: "Comparables", icon: BarChart2 },
+    ],
+  },
+  {
+    label: "Account",
+    items: [{ href: "/dashboard/settings", label: "Settings", icon: SettingsIcon }],
+  },
+];
+
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
@@ -107,10 +158,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [creditsOpen, setCreditsOpen] = useState(false);
 
-  const isPaidTier = user?.subscriptionTier === "professional" || user?.subscriptionTier === "cfo-suite";
-  const { data: creditsData } = useCredits(isPaidTier);
+  const tier = user?.subscriptionTier ?? "trial";
+  const tierLabel = TIER_LABELS[tier] ?? tier;
+  const tierStyles = TIER_STYLES[tier] ?? TIER_STYLES.trial;
 
-  // Fix B: Keepalive ping every 4 minutes to prevent session expiry during use
+  // We always have credit numbers from the auth/me payload, so we can render the pill
+  // for every tier without an extra request. The modal still uses useCredits for fresher data.
+  const creditsRemaining = user?.aiCreditsRemaining ?? 0;
+  const creditsAllowance = user?.aiCreditsMonthlyAllowance ?? 0;
+  const creditsPct = creditsAllowance > 0 ? Math.max(0, Math.min(100, (creditsRemaining / creditsAllowance) * 100)) : 0;
+  const { data: creditsData } = useCredits(!!user);
+
+  // Keepalive ping every 4 minutes to prevent session expiry during use
   useEffect(() => {
     const ping = setInterval(() => {
       fetch("/api/auth/me", { credentials: "include" }).catch(() => {});
@@ -127,16 +186,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     });
   };
 
-  const navItems = [
-    { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-    { href: "/dashboard/modelling", label: "Modelling", icon: Calculator },
-    { href: "/dashboard/accounts", label: "Accounts", icon: BookOpen },
-    { href: "/dashboard/comparables", label: "Comparables", icon: BarChart2 },
-    { href: "/dashboard/cfo-metrics", label: "CFO Metrics", icon: TrendingUp },
-    { href: "/dashboard/unit-economics", label: "Unit Economics", icon: Calculator },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  ];
-
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center px-6 border-b border-synergise-border">
@@ -145,24 +194,39 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </Link>
       </div>
       <div className="flex-1 overflow-auto py-4">
-        <nav className="grid gap-1 px-4">
-          {navItems.map((item) => {
-            const isActive = location === item.href;
-            return (
-              <Link key={item.href} href={item.href}>
-                <span
-                  className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-synergise-primary/10 text-synergise-primary"
-                      : "text-synergise-text hover:bg-synergise-background hover:text-synergise-primary"
-                  }`}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
+        <nav className="space-y-6 px-3">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} className="space-y-1">
+              {group.label && (
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-synergise-text-muted">
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => {
+                const isActive = location === item.href;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <span
+                      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-synergise-accent text-synergise-primary"
+                          : "text-synergise-text hover:bg-synergise-background hover:text-synergise-primary"
+                      }`}
+                    >
+                      {isActive && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-synergise-primary"
+                        />
+                      )}
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
       <div className="p-4 border-t border-synergise-border">
@@ -214,17 +278,38 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Desktop spacer */}
           <div className="hidden md:block" />
 
-          {/* Credits display */}
-          <div className="flex items-center gap-3">
-            {isPaidTier && (
-              <button
-                onClick={() => setCreditsOpen(true)}
-                className="flex items-center gap-1.5 rounded-full bg-synergise-accent px-3 py-1.5 text-sm font-medium text-synergise-primary hover:bg-synergise-primary/10 transition-colors"
+          {/* Tier badge + credits pill */}
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/settings#subscription">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-90 cursor-pointer ${tierStyles}`}
+                title={`Current plan: ${tierLabel}`}
               >
-                <Zap className="h-3.5 w-3.5" />
-                {creditsData?.aiCreditsRemaining ?? 0} credits
-              </button>
-            )}
+                <Sparkles className="h-3 w-3" />
+                {tierLabel}
+              </span>
+            </Link>
+
+            <button
+              onClick={() => setCreditsOpen(true)}
+              className="group flex items-center gap-2 rounded-full bg-synergise-accent px-3 py-1.5 text-xs font-medium text-synergise-primary hover:bg-synergise-primary/10 transition-colors"
+              title={`${creditsRemaining} of ${creditsAllowance} credits remaining`}
+            >
+              <Zap className="h-3.5 w-3.5" />
+              <span className="font-semibold">{creditsRemaining}</span>
+              <span className="text-synergise-text-muted hidden sm:inline">credits</span>
+              {creditsAllowance > 0 && (
+                <span
+                  className="hidden sm:inline-block h-1.5 w-12 overflow-hidden rounded-full bg-synergise-primary/15"
+                  aria-hidden="true"
+                >
+                  <span
+                    className="block h-full bg-synergise-primary transition-all"
+                    style={{ width: `${creditsPct}%` }}
+                  />
+                </span>
+              )}
+            </button>
           </div>
         </header>
 

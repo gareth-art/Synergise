@@ -1,0 +1,54 @@
+Do a UX/UI polish pass across the entire Synergise frontend. 
+Do NOT change any backend logic, API routes, or data models.
+Only make visual and layout changes. Flag anything that would 
+require logic changes instead of making them.
+
+Apply the following improvements:
+
+1. DASHBOARD
+   - Replace any blank/empty sections with purposeful empty states 
+     (icon + message + CTA button)
+   - Add skeleton loaders to all data-fetching sections
+   - Metric cards should have an icon, value, label, and a trend 
+     indicator (up/down arrow or neutral)
+
+2. TIER DIFFERENTIATION
+   - Locked modules for Trial users: show a blurred preview with 
+     an "Upgrade to unlock" overlay card (not a blank page or 403)
+   - Add a tier badge pill in the top nav or sidebar showing the 
+     user's current plan (Trial / Professional / CFO Suite)
+   - Credit balance pill in the nav: show "X credits remaining" 
+     with a small progress bar if on Trial
+
+3. NAVIGATION
+   - Group sidebar nav items into sections: Financial Tools, 
+     Insights, Account
+   - Active nav item should have a left-border accent + 
+     background highlight using the teal palette
+   - Add breadcrumbs on all non-dashboard pages
+
+4. MODULE PAGES
+   - Wrap input forms in a card container with a light border and 
+     padding — no raw fields on a white background
+   - Add a short descriptor subtitle under each module page header
+   - Output/results sections should have a distinct background 
+     (light teal tint or card with shadow) to visually separate 
+     from inputs
+
+5. MICRO-INTERACTIONS
+   - All submit/calculate buttons should show a loading spinner 
+     while processing
+   - Add toast notifications for: successful save, calculation 
+     complete, error states, and credit deduction
+   - Add a subtle fade-in transition on route changes
+
+6. GENERAL
+   - Ensure consistent spacing (use 8px grid)
+   - All placeholder/empty text should be teal-tinted, not grey
+   - Confirm the darker teal (#0D7377) is used for primary 
+     actions and active states throughout
+
+After completing, list:
+- What was changed per screen
+- Anything flagged (logic change needed)
+- Screens that required no changes

@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Switch as ToggleSwitch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Lock, BarChart2 } from "lucide-react";
+import { Lock, BarChart2, ShieldCheck } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
 
 interface OnboardingProfile { industry: string; region: string }
 
@@ -66,28 +68,39 @@ export default function Comparables() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-synergise-text-muted">
+          <Link href="/dashboard" className="hover:text-synergise-primary">Dashboard</Link>
+          <span className="mx-2">/</span>
+          <span className="text-synergise-text font-medium">Comparables</span>
+        </nav>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Comparables & Benchmarking</h1>
-          <p className="text-synergise-text-muted mt-2">See where you stand against your peers</p>
+          <p className="text-synergise-text-muted mt-2">See how your business stacks up against anonymised peers in your industry and region.</p>
         </div>
 
         {!consent ? (
           <Card className="border-synergise-border max-w-2xl mx-auto mt-12">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto bg-synergise-background p-3 rounded-full w-fit mb-4">
+              <div className="mx-auto bg-synergise-accent p-3 rounded-full w-fit mb-4">
                 <Lock className="h-6 w-6 text-synergise-primary" />
               </div>
               <CardTitle className="text-2xl">Opt-in to Benchmarking</CardTitle>
               <CardDescription className="text-base mt-2">
-                To view aggregate benchmarks for your industry, we require you to opt-in to anonymous data sharing.
-                Your financial data will be aggregated with peers and cannot be traced back to your business.
+                To view aggregate benchmarks for your industry, opt-in to anonymous data sharing.
+                Your financial data is aggregated with peers and cannot be traced back to your business.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col items-center pt-4 pb-8">
-              <div className="flex items-center space-x-3 bg-synergise-background p-4 rounded-lg border border-synergise-border">
+            <CardContent className="flex flex-col items-center pt-4 pb-8 space-y-4">
+              <div className="flex items-center gap-3 bg-synergise-accent p-4 rounded-lg border border-synergise-primary/20 w-full">
                 <ToggleSwitch id="consent" checked={consent} onCheckedChange={setConsent} />
-                <Label htmlFor="consent" className="text-sm font-medium">I consent to anonymous data sharing for benchmarking purposes</Label>
+                <Label htmlFor="consent" className="text-sm font-medium cursor-pointer">
+                  I consent to anonymous data sharing for benchmarking purposes
+                </Label>
               </div>
+              <p className="flex items-center gap-1.5 text-xs text-synergise-text-muted">
+                <ShieldCheck className="h-3.5 w-3.5 text-synergise-primary" />
+                Data is aggregated across at least 5 businesses before being shown to anyone.
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -123,7 +136,7 @@ export default function Comparables() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button onClick={handleApply} className="w-full md:w-auto bg-synergise-primary">
+                  <Button onClick={handleApply} className="w-full md:w-auto bg-synergise-primary hover:bg-synergise-primary-dark">
                     Apply Filters
                   </Button>
                 </div>
@@ -133,7 +146,21 @@ export default function Comparables() {
             {hasApplied && (
               <div className="grid gap-6 md:grid-cols-2">
                 {isLoading ? (
-                  <div className="col-span-2 text-center py-12 text-synergise-text-muted">Loading benchmarks...</div>
+                  <>
+                    {[1, 2, 3, 4].map((i) => (
+                      <Card key={i} className="border-synergise-border">
+                        <CardHeader className="pb-2">
+                          <Skeleton className="h-6 w-40" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <Skeleton className="h-3 w-full" />
+                            <Skeleton className="h-4 w-full rounded-full" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
                 ) : benchmarks && benchmarks.length > 0 ? (
                   benchmarks.map((bm) => (
                     <Card key={bm.id} className="border-synergise-border hover:shadow-md transition-shadow">
@@ -149,8 +176,12 @@ export default function Comparables() {
                     </Card>
                   ))
                 ) : (
-                  <div className="col-span-2 text-center py-12 text-synergise-text-muted">
-                    No benchmark data available for this cohort yet.
+                  <div className="col-span-2 py-12 flex flex-col items-center gap-2 text-center">
+                    <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-synergise-accent text-synergise-primary">
+                      <BarChart2 className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm font-medium text-synergise-primary">No benchmarks for this cohort yet</p>
+                    <p className="text-xs text-synergise-text-muted">Try a broader region or a more common industry.</p>
                   </div>
                 )}
               </div>

@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Trash2, TrendingUp, TrendingDown, DollarSign, Loader2, BookOpen } from "lucide-react";
+import { Link } from "wouter";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   LineChart,
@@ -113,9 +115,16 @@ export default function Accounts() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-synergise-text-muted">
+          <Link href="/dashboard" className="hover:text-synergise-primary">Dashboard</Link>
+          <span className="mx-2">/</span>
+          <span className="text-synergise-text font-medium">Management Accounts</span>
+        </nav>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Management Accounts</h1>
-          <p className="text-synergise-text-muted mt-2">Track monthly P&L and burn rate</p>
+          <p className="text-synergise-text-muted mt-2">
+            Enter monthly revenue, COGS and operating expenses — we calculate gross profit, EBITDA and trends automatically.
+          </p>
         </div>
 
         {/* Latest Summary Cards */}
@@ -207,12 +216,13 @@ export default function Accounts() {
                 </div>
               </div>
 
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white mt-4"
                 disabled={saveAccountMutation.isPending}
               >
-                Save Month
+                {saveAccountMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {saveAccountMutation.isPending ? "Saving…" : "Save Month"}
               </Button>
             </CardContent>
           </Card>
@@ -247,8 +257,12 @@ export default function Accounts() {
                       </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-full flex items-center justify-center text-synergise-text-muted">
-                      Add data to see trends
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-center">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-synergise-accent text-synergise-primary">
+                        <TrendingUp className="h-5 w-5" />
+                      </div>
+                      <p className="text-sm font-medium text-synergise-primary">Add data to see trends</p>
+                      <p className="text-xs text-synergise-text-muted">Save at least one month to plot revenue, GP and EBITDA.</p>
                     </div>
                   )}
                 </div>
@@ -261,7 +275,11 @@ export default function Accounts() {
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <div className="text-center py-4">Loading...</div>
+                  <div className="space-y-2 py-2">
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-9 w-full" />
+                    <Skeleton className="h-9 w-full" />
+                  </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -295,8 +313,16 @@ export default function Accounts() {
                         ))}
                         {(!accounts || accounts.length === 0) && (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-6 text-synergise-text-muted">
-                              No entries found.
+                            <TableCell colSpan={5} className="py-10">
+                              <div className="flex flex-col items-center gap-2 text-center">
+                                <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-synergise-accent text-synergise-primary">
+                                  <BookOpen className="h-5 w-5" />
+                                </div>
+                                <p className="text-sm font-medium text-synergise-primary">No entries yet</p>
+                                <p className="text-xs text-synergise-text-muted">
+                                  Add your first month using the form on the left to start tracking trends.
+                                </p>
+                              </div>
                             </TableCell>
                           </TableRow>
                         )}

@@ -507,9 +507,14 @@ export default function Modelling() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-synergise-text-muted">
+          <Link href="/dashboard" className="hover:text-synergise-primary">Dashboard</Link>
+          <span className="mx-2">/</span>
+          <span className="text-synergise-text font-medium">Financial Modelling</span>
+        </nav>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Financial Modelling</h1>
-          <p className="text-synergise-text-muted mt-2">Custom models for {userIndustry} businesses.</p>
+          <p className="text-synergise-text-muted mt-2">Custom models tailored for {userIndustry} businesses — see revenue, margins and break-even update as you type.</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-12">

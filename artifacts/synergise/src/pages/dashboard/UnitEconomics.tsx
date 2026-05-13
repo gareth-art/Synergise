@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Loader2, Zap } from "lucide-react";
+import { Trash2, Loader2, Zap, PieChart, Lock } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import {
   LineChart,
@@ -220,19 +221,69 @@ export default function UnitEconomics() {
   if (isTrial) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-96 space-y-4 text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-synergise-accent text-synergise-primary">
-            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
+        <div className="space-y-6">
+          <nav aria-label="Breadcrumb" className="text-sm text-synergise-text-muted">
+            <Link href="/dashboard" className="hover:text-synergise-primary">Dashboard</Link>
+            <span className="mx-2">/</span>
+            <span className="text-synergise-text font-medium">Unit Economics</span>
+          </nav>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Unit Economics</h1>
+            <p className="text-synergise-text-muted mt-1">Understand the profitability of every unit you sell</p>
           </div>
-          <h2 className="text-2xl font-bold">Unit Economics</h2>
-          <p className="text-synergise-text-muted max-w-sm">
-            Unit Economics is available on Professional and CFO Suite. Understand the profitability of every unit you sell.
-          </p>
-          <Button asChild className="bg-synergise-primary hover:bg-synergise-primary-dark">
-            <Link href="/dashboard/settings#subscription">Upgrade to Professional — $49/month</Link>
-          </Button>
+
+          <div className="relative">
+            {/* Blurred preview */}
+            <div className="pointer-events-none select-none blur-sm opacity-60 space-y-4">
+              <Card className="border-synergise-border">
+                <CardHeader>
+                  <CardTitle>Calculate Unit Economics</CardTitle>
+                  <CardDescription>Industry: {industry}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="space-y-1.5">
+                        <div className="h-4 w-24 rounded bg-synergise-background" />
+                        <div className="h-9 rounded bg-synergise-background" />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              <div className="grid gap-4 md:grid-cols-3">
+                {["Contribution Margin", "Break-even Units", "Monthly Profit"].map((label) => (
+                  <Card key={label} className="border-synergise-border">
+                    <CardContent className="p-5">
+                      <p className="text-sm text-synergise-text-muted">{label}</p>
+                      <p className="text-2xl font-bold mt-1 text-synergise-text">$ —</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            {/* Upgrade overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Card className="border-synergise-border max-w-md mx-4 shadow-lg">
+                <CardContent className="p-6 text-center space-y-4">
+                  <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-synergise-accent text-synergise-primary">
+                    <Lock className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Unlock Unit Economics</h2>
+                    <p className="text-sm text-synergise-text-muted mt-2">
+                      Calculate contribution margin, break-even and safety margin for every product or service line.
+                      Available on Professional and CFO Suite.
+                    </p>
+                  </div>
+                  <Button asChild className="bg-synergise-primary hover:bg-synergise-primary-dark w-full">
+                    <Link href="/dashboard/settings#subscription">Upgrade to Professional — $49/month</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -241,9 +292,14 @@ export default function UnitEconomics() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <nav aria-label="Breadcrumb" className="text-sm text-synergise-text-muted">
+          <Link href="/dashboard" className="hover:text-synergise-primary">Dashboard</Link>
+          <span className="mx-2">/</span>
+          <span className="text-synergise-text font-medium">Unit Economics</span>
+        </nav>
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Unit Economics</h1>
-          <p className="text-synergise-text-muted mt-1">Understand the profitability of every unit you sell</p>
+          <p className="text-synergise-text-muted mt-1">Calculate contribution margin, break-even and safety margin for any product or service line.</p>
         </div>
 
         {/* Input Form */}
@@ -325,8 +381,11 @@ export default function UnitEconomics() {
 
         {/* Results */}
         {lastResult && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{lastResult.modelName} — Results</h2>
+          <div className="rounded-xl border border-synergise-primary/20 bg-synergise-accent/40 p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <PieChart className="h-4 w-4 text-synergise-primary" />
+              <h2 className="text-lg font-semibold text-synergise-text">{lastResult.modelName} — Results</h2>
+            </div>
             <div className="grid gap-4 md:grid-cols-3">
               {[
                 { label: "Contribution Margin", value: fmt(lastResult.contributionMargin, { money: true }) },
@@ -448,7 +507,12 @@ export default function UnitEconomics() {
           </Card>
         )}
 
-        {modelsLoading && <div className="text-center text-synergise-text-muted py-8">Loading saved models…</div>}
+        {modelsLoading && (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
