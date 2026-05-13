@@ -1,0 +1,81 @@
+Update the subscription tier pricing and feature allocation across the entire codebase. Do not rebuild anything — only change tier names, prices, and feature gating.
+
+---
+
+## NEW TIER STRUCTURE
+
+Replace all existing tier pricing and feature lists with the following:
+
+Tiers: 'trial' | 'professional' | 'cfo-suite' (no change to type values)
+
+Pricing:
+- trial: $0 / 14 days
+- professional: $49/month  
+- cfo-suite: $149/month
+
+---
+
+## FEATURE GATING CHANGES
+
+Update access-control.ts (or equivalent) with this allocation:
+
+Trial:
+- Financial modelling: up to 3 models, basic inputs only
+- Management accounts: current month only
+- Comparables: industry overview, no percentile breakdown
+- CFO Metrics: burn rate only (single metric tile)
+- Unit economics: locked
+- AI credits: 0
+- PDF export: locked
+
+Professional ($49/mo):
+- Financial modelling: unlimited models, all industry templates
+- Management accounts: full history, trend charts
+- Unit economics: FULL ACCESS (unlock for this tier)
+- Comparables: full percentile charts
+- CFO Metrics: burn rate + working capital (2 free metrics, rest paywalled)
+- AI credits: 50/month
+- PDF export: unlocked
+
+CFO Suite ($149/mo):
+- Everything in Professional
+- CFO Metrics: all 12 metrics unlocked (full dashboard)
+- Scenario planning / what-if modelling in Financial Modelling
+- 200 AI credits/month
+- White-label PDF exports
+- Dedicated onboarding call (manual — just show it as a feature, no automation needed)
+
+---
+
+## UPDATE LANDING PAGE PRICING CARDS
+
+Trial card:
+- Price: "$0 for 14 days"
+- Features: 3 financial models, Basic P&L tracking, Burn rate metric, Industry benchmarks (overview), Email support
+
+Professional card (highlighted — "Most Popular"):
+- Price: "$49/month"
+- Comparison line: "Less than Xero Standard. More than just accounting."
+- Features: Unlimited financial models, Unit economics calculator, Full management accounts + trends, Complete benchmarking with percentile charts, Burn rate + working capital metrics, 50 AI credits/month, PDF exports, Priority support
+
+CFO Suite card (premium dark styling):
+- Price: "$149/month"  
+- Badge: "For serious operators"
+- Comparison line: "Full CFO analysis at a fraction of the cost."
+- Features: Everything in Professional, Full CFO dashboard (12 metrics), Scenario planning & what-if modelling, 200 AI credits/month, Dedicated onboarding call, White-label PDF exports
+
+---
+
+## UPDATE SETTINGS SUBSCRIPTION TAB
+
+Reflect new pricing on all plan displays and upgrade prompts.
+
+---
+
+## DO NOT CHANGE:
+- Any database schema
+- Any auth logic
+- Any routing
+- The AI credits deduction logic
+- The CFO metrics calculation formulas
+- Any page layouts or component structure

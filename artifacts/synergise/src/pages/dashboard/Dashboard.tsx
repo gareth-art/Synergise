@@ -23,7 +23,7 @@ export default function Dashboard() {
   const firstName = user?.fullName?.split(' ')[0] || "";
   const timeOfDay = new Date().getHours() < 12 ? "morning" : new Date().getHours() < 18 ? "afternoon" : "evening";
 
-  const isTrial = user?.subscriptionTier === "Trial";
+  const isTrial = user?.subscriptionTier === "trial";
   const trialDaysRemaining = user?.trialStartDate 
     ? Math.max(0, 14 - Math.floor((new Date().getTime() - new Date(user.trialStartDate).getTime()) / (1000 * 60 * 60 * 24)))
     : 0;

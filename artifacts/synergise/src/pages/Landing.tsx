@@ -111,18 +111,23 @@ export default function Landing() {
             <div className="text-center mb-16">
               <h2 className="text-3xl font-semibold tracking-tight text-synergise-text sm:text-4xl lg:text-[36px]">Simple, transparent pricing.</h2>
             </div>
-            <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
+            <div className="mx-auto grid max-w-5xl gap-6 md:grid-cols-3">
+              {/* Trial */}
               <Card className="border-synergise-border shadow-sm flex flex-col">
-                <CardHeader className="text-center pb-8">
-                  <CardTitle className="text-2xl font-semibold text-synergise-text">Trial</CardTitle>
-                  <CardDescription className="text-4xl font-bold text-synergise-text mt-4">$0 <span className="text-lg font-normal text-synergise-text-muted">for 14 days</span></CardDescription>
+                <CardHeader className="text-center pb-6">
+                  <CardTitle className="text-xl font-semibold text-synergise-text">Trial</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-synergise-text">$0</span>
+                    <span className="text-base font-normal text-synergise-text-muted"> for 14 days</span>
+                  </div>
                 </CardHeader>
                 <CardContent className="flex-1">
-                  <ul className="space-y-4 text-synergise-text-muted">
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Full access to all 3 modules</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Up to 3 financial models</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Basic benchmarking</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Email support</li>
+                  <ul className="space-y-3 text-sm text-synergise-text-muted">
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> 3 financial models</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Basic P&amp;L tracking</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Burn rate metric</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Industry benchmarks (overview)</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Email support</li>
                   </ul>
                 </CardContent>
                 <div className="p-6 pt-0 mt-auto">
@@ -132,27 +137,64 @@ export default function Landing() {
                 </div>
               </Card>
 
+              {/* Professional — Most Popular */}
               <Card className="border-2 border-synergise-primary shadow-lg relative flex flex-col">
                 <div className="absolute -top-4 left-0 right-0 flex justify-center">
                   <span className="bg-synergise-primary text-white text-xs font-bold uppercase tracking-wider py-1 px-3 rounded-full">Most Popular</span>
                 </div>
-                <CardHeader className="text-center pb-8 pt-10">
-                  <CardTitle className="text-2xl font-semibold text-synergise-text">Professional</CardTitle>
-                  <CardDescription className="text-4xl font-bold text-synergise-text mt-4">$29<span className="text-lg font-normal text-synergise-text-muted">/month</span></CardDescription>
+                <CardHeader className="text-center pb-6 pt-10">
+                  <CardTitle className="text-xl font-semibold text-synergise-text">Professional</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-synergise-text">$49</span>
+                    <span className="text-base font-normal text-synergise-text-muted">/month</span>
+                  </div>
+                  <p className="text-xs text-synergise-text-muted mt-2 italic">Less than Xero Standard. More than just accounting.</p>
                 </CardHeader>
                 <CardContent className="flex-1">
-                  <ul className="space-y-4 text-synergise-text-muted">
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Unlimited financial models</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Full management accounts</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Complete benchmarking with percentile charts</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> AI-powered analysis</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> PDF exports</li>
-                    <li className="flex items-center gap-3"><span className="text-synergise-primary font-bold">✓</span> Priority support</li>
+                  <ul className="space-y-3 text-sm text-synergise-text-muted">
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Unlimited financial models</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Unit economics calculator</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Full management accounts + trends</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Complete benchmarking with percentile charts</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Burn rate + working capital metrics</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> 50 AI credits/month</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> PDF exports</li>
+                    <li className="flex items-start gap-2"><span className="text-synergise-primary font-bold shrink-0">✓</span> Priority support</li>
                   </ul>
                 </CardContent>
                 <div className="p-6 pt-0 mt-auto">
-                  <Button asChild className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white">
+                  <Button asChild className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold">
                     <Link href="/signup">Get Started</Link>
+                  </Button>
+                </div>
+              </Card>
+
+              {/* CFO Suite — Premium */}
+              <Card className="bg-synergise-primary text-white border-0 shadow-xl flex flex-col relative">
+                <div className="absolute -top-4 left-0 right-0 flex justify-center">
+                  <span className="bg-white text-synergise-primary text-xs font-bold uppercase tracking-wider py-1 px-3 rounded-full">For serious operators</span>
+                </div>
+                <CardHeader className="text-center pb-6 pt-10">
+                  <CardTitle className="text-xl font-semibold text-white">CFO Suite</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-white">$149</span>
+                    <span className="text-base font-normal text-white/70">/month</span>
+                  </div>
+                  <p className="text-xs text-white/60 mt-2 italic">Full CFO analysis at a fraction of the cost.</p>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <ul className="space-y-3 text-sm text-white/80">
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> Everything in Professional</li>
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> Full CFO dashboard (12 metrics)</li>
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> Scenario planning &amp; what-if modelling</li>
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> 200 AI credits/month</li>
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> Dedicated onboarding call</li>
+                    <li className="flex items-start gap-2"><span className="font-bold shrink-0">✓</span> White-label PDF exports</li>
+                  </ul>
+                </CardContent>
+                <div className="p-6 pt-0 mt-auto">
+                  <Button asChild className="w-full bg-white text-synergise-primary hover:bg-gray-100 font-semibold">
+                    <Link href="/signup">Get CFO Suite</Link>
                   </Button>
                 </div>
               </Card>
