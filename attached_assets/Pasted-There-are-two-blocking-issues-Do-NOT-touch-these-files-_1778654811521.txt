@@ -1,0 +1,75 @@
+There are two blocking issues. Do NOT touch these files under any circumstances: use-auth.tsx, RequireAuth.tsx, App.tsx router section, Login.tsx, Signup.tsx.
+
+---
+
+## ISSUE 1: ONBOARDING FORM → "SET UP MY DASHBOARD" RETURNS 401
+
+The form fills correctly but clicking submit returns a session error.
+
+DIAGNOSE FIRST — add these logs to the POST /api/onboarding route and the requireAuth middleware, restart, submit the form once, and show me the console output:
+
+In requireAuth middleware:
+```ts
+console.log('[requireAuth] isAuthenticated:', req.isAuthenticated());
+console.log('[requireAuth] session ID:', req.session?.id);
+console.log('[requireAuth] user ID:', req.user?.id);
+console.log('[requireAuth] cookie:', req.headers.cookie?.substring(0, 50));
+```
+
+In POST /api/onboarding handler (before requireAuth runs):
+```ts
+console.log('[ONBOARDING POST] request received');
+```
+
+Show me the full console output after submitting. Then fix based on what you see:
+
+- If "[ONBOARDING POST] request received" does NOT appear → the request is not reaching the server (CORS or network issue)
+- If isAuthenticated is false + cookie IS present → session deserialisation is failing (check deserializeUser)
+- If isAuthenticated is false + NO cookie → session cookie is not being sent (credentials: include missing somewhere, or secure: true breaking cookies)
+- If isAuthenticated is true but still getting 401 → there is a second auth check somewhere else
+
+After identifying the cause, fix it and remove the diagnostic logs.
+
+---
+
+## ISSUE 2: DASHBOARD NOT LOADING AFTER SIGN IN
+
+After login the dashboard either shows a blank screen or an infinite spinner.
+
+DIAGNOSE FIRST — open browser DevTools and report:
+1. Exact URL in the address bar when stuck
+2. Any red errors in the Console tab (paste them)
+3. Network tab — which API call (if any) is failing or pending
+4. Does the page show: blank white, spinner, partial content, or error message?
+
+Then fix based on findings:
+
+### If there is a JavaScript/React error in console:
+- Find the component throwing the error
+- Fix the error without changing any auth or routing logic
+
+### If a specific API call is failing (4xx/5xx):
+- Fix that API route only
+- Do not change frontend routing
+
+### If the page is stuck on a spinner (no error):
+- Find the query or component that is in permanent loading state
+- The most common cause: a useQuery with no staleTime that keeps refetching and never resolves
+- Fix: add staleTime: 60000 to any query that is stuck in loading state
+
+### If RequireOnboarding is looping:
+- Show me the current content of RequireOnboarding.tsx
+- The issue is likely that it returns null/undefined for a non-404 response and incorrectly redirects to /onboarding
+- Fix: only redirect to /onboarding if response.status === 404, treat ALL other responses (including errors) as "onboarding complete" and allow through to dashboard
+
+---
+
+## AFTER BOTH FIXES:
+
+Verify this exact flow works end to end:
+1. Sign up new user → /onboarding loads ✅
+2. Fill all 4 fields → click "Set Up My Dashboard" → /dashboard loads ✅  
+3. Sign out → sign in → /dashboard loads directly ✅
+4. Refresh /dashboard → stays on /dashboard ✅
+
+Report what was broken and what was changed. Remove all diagnostic logs before reporting.

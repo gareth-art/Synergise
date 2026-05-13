@@ -53,6 +53,11 @@ passport.deserializeUser(async (id: number, done) => {
 
 const app: Express = express();
 
+// Trust the Replit proxy so express-session sees the original HTTPS scheme
+// (req.protocol becomes 'https' from X-Forwarded-Proto). Required for `secure: true` cookies
+// to be set when the internal connection from the proxy to Express is plain HTTP.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
@@ -90,14 +95,18 @@ app.use(
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    proxy: true, // honour X-Forwarded-Proto from the Replit proxy
     store: new MemoryStoreSession({
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: false, // Replit uses HTTP internally even when public URL is HTTPS
+      // SameSite=None + Secure=true is required for cookies to be sent in the
+      // Replit workspace iframe (cross-site context). The Replit proxy serves
+      // the public URL over HTTPS, so Secure=true is satisfied via `trust proxy`.
+      secure: true,
       httpOnly: true,
+      sameSite: "none",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      sameSite: "lax",
     },
   })
 );
