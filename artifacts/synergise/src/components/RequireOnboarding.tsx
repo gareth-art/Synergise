@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 async function fetchOnboarding() {
   const res = await fetch("/api/onboarding", { credentials: "include" });
   if (res.status === 404) return null;
-  if (res.status === 401) return null; // not authenticated — RequireAuth above us handles this
+  if (res.status === 401) return undefined; // not authenticated yet — don't redirect to onboarding
   if (!res.ok) return null;
   return res.json();
 }
