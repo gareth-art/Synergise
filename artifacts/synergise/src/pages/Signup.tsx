@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useSignup, getGetMeQueryKey } from "@workspace/api-client-react";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 
 const signupSchema = z.object({
   fullName: z.string().min(1, { message: "Full name is required" }),
@@ -32,40 +33,42 @@ const signupSchema = z.object({
 export default function Signup() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const signupMutation = useSignup();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: {
-      fullName: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-    },
+    defaultValues: { fullName: "", email: "", password: "", confirmPassword: "" },
   });
 
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     setErrorMsg(null);
-    signupMutation.mutate({
-      data: {
-        fullName: values.fullName,
-        email: values.email,
-        password: values.password,
-        confirmPassword: values.confirmPassword,
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          fullName: values.fullName,
+          email: values.email,
+          password: values.password,
+          confirmPassword: values.confirmPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.error ?? "Failed to create account. Please try again.");
+        return;
       }
-    }, {
-      onSuccess: (responseUser) => {
-        queryClient.setQueryData(getGetMeQueryKey(), responseUser);
-        setLocation("/onboarding");
-      },
-      onError: (err: any) => {
-        setErrorMsg(err?.message || "Failed to create account. Please try again.");
-      }
-    });
+      queryClient.setQueryData(getGetMeQueryKey(), data);
+      setLocation("/onboarding");
+    } catch {
+      setErrorMsg("Failed to create account. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
-
-  const isFormValid = form.formState.isValid;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-synergise-background p-4 font-sans">
@@ -85,64 +88,52 @@ export default function Signup() {
                   <AlertDescription>{errorMsg}</AlertDescription>
                 </Alert>
               )}
-              <FormField
-                control={form.control}
-                name="fullName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="John Doe" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="you@company.com" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Confirm Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="fullName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Full Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Jane Lim" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Email</FormLabel>
+                  <FormControl>
+                    <Input placeholder="you@company.com" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="confirmPassword" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Confirm Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
               <Button
                 type="submit"
                 className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
-                disabled={signupMutation.isPending || !isFormValid}
+                disabled={isSubmitting}
               >
-                {signupMutation.isPending ? "Creating Account..." : "Create My Account"}
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating Account…</>
+                ) : (
+                  "Create My Account & Start Free Trial"
+                )}
               </Button>
             </form>
           </Form>
@@ -150,9 +141,7 @@ export default function Signup() {
         <CardFooter className="flex justify-center border-t border-synergise-border pt-6">
           <p className="text-sm text-synergise-text-muted">
             Already have an account?{" "}
-            <Link href="/login" className="font-semibold text-synergise-primary hover:underline">
-              Sign in
-            </Link>
+            <Link href="/login" className="font-semibold text-synergise-primary hover:underline">Sign in</Link>
           </p>
         </CardFooter>
       </Card>

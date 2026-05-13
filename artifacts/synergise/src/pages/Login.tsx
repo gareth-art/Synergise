@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useLogin, getGetMeQueryKey, getOnboarding } from "@workspace/api-client-react";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().min(1, { message: "Email is required" }).email({ message: "Please enter a valid email address" }),
@@ -27,37 +28,62 @@ const loginSchema = z.object({
 export default function Login() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const loginMutation = useLogin();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   async function onSubmit(values: z.infer<typeof loginSchema>) {
     setErrorMsg(null);
-    loginMutation.mutate({ data: values }, {
-      onSuccess: async (responseUser) => {
-        queryClient.setQueryData(getGetMeQueryKey(), responseUser);
-        try {
-          const profile = await getOnboarding();
-          if (profile?.onboardingCompletedAt) {
-            setLocation("/dashboard");
-          } else {
-            setLocation("/onboarding");
-          }
-        } catch {
+    setStatusMsg(null);
+    setIsSubmitting(true);
+    try {
+      // 1. Log in
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(values),
+      });
+      const loginData = await loginRes.json();
+      if (!loginRes.ok) {
+        setErrorMsg(loginData.error ?? "Incorrect email or password");
+        return;
+      }
+
+      // 2. Set auth state immediately
+      queryClient.setQueryData(getGetMeQueryKey(), loginData);
+      setStatusMsg("Signing you in…");
+
+      // 3. Check onboarding status to decide where to navigate
+      try {
+        const onboardingRes = await fetch("/api/onboarding", { credentials: "include" });
+        if (onboardingRes.ok) {
+          setLocation("/dashboard");
+        } else {
           setLocation("/onboarding");
         }
-      },
-      onError: (err: any) => {
-        setErrorMsg(err?.message || "Incorrect email or password");
+      } catch {
+        setLocation("/onboarding");
       }
-    });
+    } catch {
+      setErrorMsg("Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (statusMsg) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-synergise-background">
+        <Loader2 className="h-8 w-8 animate-spin text-synergise-primary mb-3" />
+        <p className="text-sm text-synergise-text-muted">{statusMsg}</p>
+      </div>
+    );
   }
 
   return (
@@ -78,38 +104,34 @@ export default function Login() {
                   <AlertDescription>{errorMsg}</AlertDescription>
                 </Alert>
               )}
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Email</FormLabel>
-                    <FormControl>
-                      <Input placeholder="you@company.com" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-synergise-text">Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormField control={form.control} name="email" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Email</FormLabel>
+                  <FormControl>
+                    <Input placeholder="you@company.com" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-synergise-text">Password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" {...field} className="border-synergise-border focus-visible:ring-synergise-primary" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
               <Button
                 type="submit"
                 className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
-                disabled={loginMutation.isPending}
+                disabled={isSubmitting}
               >
-                {loginMutation.isPending ? "Signing in..." : "Sign In"}
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in…</>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
           </Form>
@@ -117,9 +139,7 @@ export default function Login() {
         <CardFooter className="flex justify-center border-t border-synergise-border pt-6">
           <p className="text-sm text-synergise-text-muted">
             Don't have an account?{" "}
-            <Link href="/signup" className="font-semibold text-synergise-primary hover:underline">
-              Start free trial
-            </Link>
+            <Link href="/signup" className="font-semibold text-synergise-primary hover:underline">Start free trial</Link>
           </p>
         </CardFooter>
       </Card>

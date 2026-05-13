@@ -1,0 +1,280 @@
+Fix the entire signup, login, and onboarding flow. This is a UX and logic overhaul — the current flow is broken in multiple ways. Fix everything below without touching any other functionality.
+
+---
+
+## THE PROBLEMS TO FIX
+
+1. "Start Free Trial" loads a signup form, but after submit it jumps to a login form instead of proceeding directly
+2. Onboarding loads very slowly after login
+3. After completing all 4 onboarding steps, "Go to Dashboard" does nothing then eventually redirects back to login
+4. After re-signing in, the app tries to run onboarding again even though it was already completed
+5. The onboarding progress steps (1, 2, 3, 4) should be visible at the top throughout the wizard
+
+---
+
+## FIX 1: MERGE SIGNUP INTO A SINGLE SEAMLESS FLOW
+
+The "Start Free Trial" button must open or navigate to a single unified signup page. There must be NO jump from a signup form to a login form. Ever.
+
+In signup.tsx:
+- The page contains ONE form: Full Name, Email, Password, Confirm Password
+- Submit button: "Create My Account & Start Free Trial"
+- On submit:
+  1. POST /api/auth/signup with { fullName, email, password }
+  2. On success response: immediately call queryClient.setQueryData(['/api/auth/me'], responseData.user)
+  3. Immediately navigate to /onboarding using setLocation('/onboarding')
+  4. Do NOT show any login form, modal, or redirect to /login under any circumstances
+- Below form: "Already have an account? Sign in" → links to /login
+- All validation inline with React Hook Form + Zod. Required: fullName, valid email, password min 8 chars, passwords match.
+
+In the backend POST /api/auth/signup:
+- After creating user: call req.login(user, callback) to establish Passport session immediately
+- Inside the callback: call req.session.save() before sending response
+- Only after session.save() completes: send res.json({ user })
+- Never send response before session is saved
+
+---
+
+## FIX 2: LOGIN FLOW
+
+In login.tsx (/login page):
+- Single form: Email, Password
+- Submit button: "Sign In"
+- On submit:
+  1. POST /api/auth/login
+  2. On success: call queryClient.setQueryData(['/api/auth/me'], responseData.user)
+  3. Then GET /api/onboarding to check if onboarding profile exists for this user
+  4. If no profile → navigate to /onboarding
+  5. If profile exists → navigate to /dashboard
+  6. Use a loading state during the onboarding check — show "Signing you in..." spinner, do not flash the page
+- Inline error: "Incorrect email or password" on 401 response
+- Do NOT navigate before both the auth state update AND onboarding check are complete
+
+In backend POST /api/auth/login:
+- Same fix as signup: req.session.save() before res.json({ user })
+
+---
+
+## FIX 3: ONBOARDING — SLOW LOADING
+
+The onboarding page must load instantly. Fix these causes of slow loading:
+
+- Do NOT fetch any heavy data on onboarding page mount — onboarding only needs the current user's name from the auth state which is already cached in queryClient
+- Do NOT make any API calls before the user starts the wizard — only call POST /api/onboarding when the user clicks "Go to Dashboard" on step 4
+- Remove any useEffect that fetches data on mount in onboarding.tsx unless absolutely necessary
+- The 4 steps are pure UI state (useState for currentStep) — no API calls until final submission
+
+---
+
+## FIX 4: ONBOARDING COMPLETION — "GO TO DASHBOARD" NOT WORKING
+
+The final step button must work reliably. Replace the current implementation with this exact pattern:
+
+```tsx
+const [, setLocation] = useLocation();
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [error, setError] = useState<string | null>(null);
+
+const handleComplete = async () => {
+  setIsSubmitting(true);
+  setError(null);
+  try {
+    const response = await fetch('/api/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        businessName,
+        industry,
+        region,
+        revenueStage
+      })
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to save onboarding');
+    }
+    // Mark onboarding as complete in query cache
+    queryClient.invalidateQueries({ queryKey: ['/api/onboarding'] });
+    // Navigate immediately
+    setLocation('/dashboard');
+  } catch (err: any) {
+    setError(err.message || 'Something went wrong. Please try again.');
+    setIsSubmitting(false);
+  }
+};
+```
+
+The "Go to Dashboard" button:
+```tsx
+<Button 
+  onClick={handleComplete} 
+  disabled={isSubmitting}
+  size="lg"
+  className="w-full"
+>
+  {isSubmitting ? (
+    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Setting up your dashboard...</>
+  ) : (
+    'Go to Dashboard →'
+  )}
+</Button>
+```
+
+If error is not null, show it as a red inline error message below the button.
+
+---
+
+## FIX 5: ONBOARDING GUARD — DON'T REPEAT COMPLETED ONBOARDING
+
+The app must never send a user back to /onboarding if they have already completed it.
+
+Create or update a useOnboardingStatus hook:
+```tsx
+export function useOnboardingStatus() {
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['/api/onboarding'],
+    queryFn: async () => {
+      const res = await fetch('/api/onboarding', { credentials: 'include' });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error('Failed to fetch onboarding status');
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000, // cache for 5 minutes
+    retry: false
+  });
+  return { 
+    isComplete: !!profile, 
+    isLoading,
+    profile 
+  };
+}
+```
+
+In the /onboarding route component (ProtectedRoute or the onboarding page itself):
+```tsx
+const { isComplete, isLoading } = useOnboardingStatus();
+
+if (isLoading) return <LoadingSpinner />;
+if (isComplete) {
+  setLocation('/dashboard');
+  return null;
+}
+// render onboarding wizard
+```
+
+In the dashboard ProtectedRoute:
+- If user is authenticated AND onboarding is NOT complete → redirect to /onboarding
+- If user is authenticated AND onboarding IS complete → render dashboard
+- While isLoading → show full-page loading spinner (NOT a redirect)
+
+---
+
+## FIX 6: PROGRESS STEPS UI IN ONBOARDING
+
+The 4-step progress indicator must be visible at the top of the onboarding wizard throughout all steps.
+
+Add this progress bar at the top of the onboarding page (above the step content):
+
+```tsx
+const steps = [
+  { number: 1, label: 'Welcome' },
+  { number: 2, label: 'Your Business' },
+  { number: 3, label: 'Scale & Region' },
+  { number: 4, label: 'Ready' }
+];
+
+// Progress bar:
+<div className="flex items-center justify-center mb-8">
+  {steps.map((step, index) => (
+    <div key={step.number} className="flex items-center">
+      <div className={cn(
+        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold",
+        currentStep >= step.number 
+          ? "bg-primary text-white" 
+          : "bg-gray-100 text-gray-400"
+      )}>
+        {currentStep > step.number ? <Check className="w-4 h-4" /> : step.number}
+      </div>
+      <span className={cn(
+        "ml-2 text-sm font-medium hidden sm:block",
+        currentStep >= step.number ? "text-primary" : "text-gray-400"
+      )}>
+        {step.label}
+      </span>
+      {index < steps.length - 1 && (
+        <div className={cn(
+          "w-12 h-0.5 mx-3",
+          currentStep > step.number ? "bg-primary" : "bg-gray-200"
+        )} />
+      )}
+    </div>
+  ))}
+</div>
+```
+
+---
+
+## FIX 7: LOADING STATES THROUGHOUT
+
+Replace all instances where a missing/loading auth state causes a redirect with a proper loading spinner:
+
+Create a reusable LoadingSpinner component if it doesn't exist:
+```tsx
+export function LoadingSpinner({ message = "Loading..." }: { message?: string }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background">
+      <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+```
+
+Use this in:
+- ProtectedRoute while auth state is loading
+- Onboarding page while onboarding status is being checked
+- Login page after form submit while navigating
+- Dashboard router while checking onboarding completion
+
+The rule: NEVER redirect to /login while isLoading is true. Only redirect when isLoading is false AND user is confirmed null.
+
+---
+
+## FIX 8: SESSION PERSISTENCE CHECK
+
+In server/index.ts or session config:
+- Confirm cookie settings are:
+  ```ts
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: 'lax'
+  }
+  ```
+- sameSite must be 'lax' not 'strict' (strict breaks redirects from external links)
+- maxAge must be set (without it, cookies expire on browser close and users get logged out unexpectedly)
+
+---
+
+## VERIFY AFTER ALL FIXES:
+
+Walk through this exact flow and confirm each step works without any manual intervention:
+
+1. Go to landing page → click "Start Free Trial"
+2. Fill in Name, Email, Password, Confirm Password → click "Create My Account & Start Free Trial"
+3. ✅ Lands on /onboarding immediately, no login form appears
+4. Progress bar shows Step 1 highlighted
+5. Click through Steps 1 → 2 → 3, filling in: Business Name, Industry (Wellness & Lifestyle), Region (Singapore), Revenue Stage (SGD 500k–2M)
+6. Progress bar updates at each step (1, 2, 3, 4 highlighted in sequence)
+7. Step 4: click "Go to Dashboard →"
+8. ✅ Spinner shows "Setting up your dashboard..."
+9. ✅ Lands on /dashboard with correct greeting and business info
+10. Sign out
+11. Go to /login, enter email + password → click Sign In
+12. ✅ Lands directly on /dashboard (no onboarding repeat)
+13. Refresh the page
+14. ✅ Stays on /dashboard (session persists)
+
+Do not change any module pages, API routes, database schema, or billing logic.
