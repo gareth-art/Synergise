@@ -3,7 +3,6 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -61,10 +60,14 @@ export default function Signup() {
         setErrorMsg(data.error ?? "Failed to create account. Please try again.");
         return;
       }
-      queryClient.setQueryData(getGetMeQueryKey(), data);
+      // Populate the auth cache so RequireAuth passes immediately
+      queryClient.setQueryData(["/api/auth/me"], data);
+      // Clear any stale onboarding cache so the guard starts fresh
+      queryClient.removeQueries({ queryKey: ["/api/onboarding"] });
+      // Navigate — no login detour, ever
       setLocation("/onboarding");
     } catch {
-      setErrorMsg("Failed to create account. Please try again.");
+      setErrorMsg("Connection error. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

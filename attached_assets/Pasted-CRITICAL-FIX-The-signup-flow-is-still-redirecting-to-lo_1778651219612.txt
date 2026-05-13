@@ -1,0 +1,245 @@
+CRITICAL FIX: The signup flow is still redirecting to /login instead of /onboarding after account creation. This must be fixed permanently. Follow this exact diagnostic and fix sequence.
+
+---
+
+## STEP 1: DIAGNOSE BEFORE CHANGING ANYTHING
+
+Search the entire codebase and report back what you find for each of these:
+
+1. In App.tsx or any router file — what is the route definition for '/'? What component does it render? Does it have any redirect logic?
+
+2. Find every ProtectedRoute or AuthGuard component. List the exact redirect logic in each one — specifically what happens when:
+   - User IS authenticated but onboarding is NOT complete
+   - User IS authenticated and onboarding IS complete
+   - User is NOT authenticated
+
+3. In signup.tsx — show the EXACT code that runs after a successful POST /api/auth/signup response. Copy the actual current code, do not summarise.
+
+4. Is there any useEffect anywhere in App.tsx, a layout component, or a route wrapper that checks auth state and redirects? List every single one.
+
+5. Does the /signup route have a ProtectedRoute wrapper? If yes, what does it do when the user IS authenticated?
+
+Report all findings before making any changes.
+
+---
+
+## STEP 2: THE ROOT CAUSE IS ALMOST CERTAINLY ONE OF THESE
+
+After diagnosing, fix whichever of these is causing the problem:
+
+### Likely Cause A: ProtectedRoute redirecting authenticated users away from /signup
+If the /signup route is wrapped in any auth guard that says "if authenticated, redirect to /dashboard or /login" — this fires immediately after signup succeeds and overrides the setLocation('/onboarding') call.
+
+Fix: The /signup and /login routes must be completely unwrapped — no ProtectedRoute, no AuthGuard, no redirect logic of any kind. They are public routes.
+
+```tsx
+// In App.tsx — signup and login must be plain routes, no wrapper:
+<Route path="/signup" component={Signup} />
+<Route path="/login" component={Login} />
+// NOT:
+// <ProtectedRoute path="/signup" ... /> ← wrong
+```
+
+### Likely Cause B: A global useEffect in App.tsx redirecting after auth state updates
+If App.tsx has a useEffect like:
+```tsx
+useEffect(() => {
+  if (user && !onboardingComplete) setLocation('/login');
+  // or
+  if (user) setLocation('/dashboard');
+}, [user]);
+```
+This fires whenever auth state changes — including right after signup — and overrides the signup page's own navigation.
+
+Fix: Remove any global redirect useEffect from App.tsx entirely. Redirects must only happen in ProtectedRoute components and explicitly in page-level handlers, never in App.tsx.
+
+### Likely Cause C: The onboarding guard redirecting to /login on 401
+If the ProtectedRoute checks onboarding status and gets a 401 (because session isn't set yet) and redirects to /login — this creates the loop.
+
+Fix: ProtectedRoute must show a loading spinner on ANY non-200 response, not redirect to /login. Only redirect to /login when the auth check explicitly returns 401 with isLoading === false.
+
+### Likely Cause D: signup.tsx still has an onAuthSuccess callback
+If signup.tsx calls an onAuthSuccess prop or callback after signup that is defined elsewhere and redirects to /login.
+
+Fix: Remove onAuthSuccess entirely from signup.tsx. Post-signup navigation must be self-contained in signup.tsx only.
+
+---
+
+## STEP 3: IMPLEMENT THE DEFINITIVE FLOW
+
+After finding and fixing the root cause, ensure this exact architecture is in place:
+
+### Route structure in App.tsx:
+```tsx
+function Router() {
+  return (
+    <Switch>
+      {/* Public routes — no auth wrapper */}
+      <Route path="/" component={Landing} />
+      <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
+      
+      {/* Onboarding — auth required, but no onboarding check */}
+      <Route path="/onboarding">
+        <RequireAuth>
+          <Onboarding />
+        </RequireAuth>
+      </Route>
+      
+      {/* Dashboard routes — auth + onboarding required */}
+      <Route path="/dashboard/:rest*">
+        <RequireAuth>
+          <RequireOnboarding>
+            <DashboardRouter />
+          </RequireOnboarding>
+        </RequireAuth>
+      </Route>
+      
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+```
+
+### RequireAuth component:
+```tsx
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['/api/auth/me'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/me', { credentials: 'include' });
+      if (res.status === 401) return null;
+      if (!res.ok) throw new Error('Auth check failed');
+      return res.json();
+    },
+    staleTime: 60 * 1000,
+    retry: false
+  });
+
+  if (isLoading) return <LoadingSpinner message="Loading..." />;
+  if (!user) {
+    setLocation('/login');
+    return null;
+  }
+  return <>{children}</>;
+}
+```
+
+### RequireOnboarding component:
+```tsx
+function RequireOnboarding({ children }: { children: React.ReactNode }) {
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['/api/onboarding'],
+    queryFn: async () => {
+      const res = await fetch('/api/onboarding', { credentials: 'include' });
+      if (res.status === 404) return null;
+      if (!res.ok) return null; // treat errors as "not done" only for 404
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false
+  });
+
+  if (isLoading) return <LoadingSpinner message="Setting up your dashboard..." />;
+  if (!profile) {
+    setLocation('/onboarding');
+    return null;
+  }
+  return <>{children}</>;
+}
+```
+
+### Signup.tsx — post-submit handler (definitive version):
+```tsx
+const onSubmit = async (data: FormData) => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        fullName: data.fullName,
+        email: data.email,
+        password: data.password,
+        username: data.email
+      })
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      setError(result.error || 'Signup failed. Please try again.');
+      return;
+    }
+    // Set auth state in cache
+    queryClient.setQueryData(['/api/auth/me'], result.user);
+    // Clear any stale onboarding cache
+    queryClient.removeQueries({ queryKey: ['/api/onboarding'] });
+    // Navigate to onboarding
+    setLocation('/onboarding');
+  } catch {
+    setError('Connection error. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+### Login.tsx — post-submit handler (definitive version):
+```tsx
+const onSubmit = async (data: FormData) => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email: data.email, password: data.password })
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      setError('Incorrect email or password');
+      return;
+    }
+    // Set auth state
+    queryClient.setQueryData(['/api/auth/me'], result.user);
+    // Check onboarding
+    const onboardingRes = await fetch('/api/onboarding', { credentials: 'include' });
+    if (onboardingRes.ok) {
+      setLocation('/dashboard');
+    } else {
+      setLocation('/onboarding');
+    }
+  } catch {
+    setError('Connection error. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+---
+
+## STEP 4: VERIFY THE NAVIGATION MAP IS CORRECT
+
+After all fixes, confirm in the codebase that:
+
+| Action | Destination | Must NOT go to |
+|--------|-------------|----------------|
+| Click "Start Free Trial" on landing | /signup | /login, modal |
+| Successful signup | /onboarding | /login, /dashboard |
+| Successful login (onboarding done) | /dashboard | /onboarding, /login |
+| Successful login (onboarding not done) | /onboarding | /login |
+| Visit /dashboard unauthenticated | /login | /signup, /onboarding |
+| Visit /dashboard authenticated, no onboarding | /onboarding | /login |
+| Visit /onboarding when onboarding complete | /dashboard | stay on /onboarding |
+| Visit /signup when already logged in | stay on /signup OR /dashboard | /login |
+
+---
+
+## RULES:
+- Do Step 1 diagnosis FIRST and report findings before changing anything
+- Fix only auth/routing files: App.tsx, signup.tsx, login.tsx, any ProtectedRoute/AuthGuard/RequireAuth components
+- Do not touch onboarding.tsx content, any dashboard pages, API routes, or database
+- After fixes: walk through the full flow manually in the app and confirm each row in the navigation map above works correctly

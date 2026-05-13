@@ -16,57 +16,74 @@ import Comparables from "@/pages/dashboard/Comparables";
 import Settings from "@/pages/dashboard/Settings";
 import CfoMetrics from "@/pages/dashboard/CfoMetrics";
 import UnitEconomics from "@/pages/dashboard/UnitEconomics";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute, RequireOnboarding } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <Switch>
+      {/* Public routes — no auth wrapper */}
       <Route path="/" component={Landing} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/admin" component={Admin} />
 
-      {/* Protected Routes */}
+      {/* Onboarding — auth required, but no onboarding check */}
       <Route path="/onboarding">
         <ProtectedRoute>
           <Onboarding />
         </ProtectedRoute>
       </Route>
+
+      {/* Dashboard routes — auth + onboarding required */}
       <Route path="/dashboard">
         <ProtectedRoute>
-          <Dashboard />
+          <RequireOnboarding>
+            <Dashboard />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/modelling">
         <ProtectedRoute>
-          <Modelling />
+          <RequireOnboarding>
+            <Modelling />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/accounts">
         <ProtectedRoute>
-          <Accounts />
+          <RequireOnboarding>
+            <Accounts />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/comparables">
         <ProtectedRoute>
-          <Comparables />
+          <RequireOnboarding>
+            <Comparables />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/cfo-metrics">
         <ProtectedRoute>
-          <CfoMetrics />
+          <RequireOnboarding>
+            <CfoMetrics />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/unit-economics">
         <ProtectedRoute>
-          <UnitEconomics />
+          <RequireOnboarding>
+            <UnitEconomics />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard/settings">
         <ProtectedRoute>
-          <Settings />
+          <RequireOnboarding>
+            <Settings />
+          </RequireOnboarding>
         </ProtectedRoute>
       </Route>
 
