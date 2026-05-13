@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,6 +27,9 @@ const loginSchema = z.object({
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const sessionExpired = new URLSearchParams(search).get("reason") === "session-expired";
+
   const queryClient = useQueryClient();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +45,7 @@ export default function Login() {
     setStatusMsg(null);
     setIsSubmitting(true);
     try {
-      // 1. Log in
+      // Step 1: Login
       const loginRes = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -55,20 +58,23 @@ export default function Login() {
         return;
       }
 
-      // 2. Set auth state immediately
+      // Step 2: Update auth cache
       queryClient.setQueryData(getGetMeQueryKey(), loginData);
       setStatusMsg("Signing you in…");
 
-      // 3. Check onboarding status to decide where to navigate
+      // Step 3: Check onboarding status — only 404 means "not done yet"
       try {
         const onboardingRes = await fetch("/api/onboarding", { credentials: "include" });
-        if (onboardingRes.ok) {
-          setLocation("/dashboard");
-        } else {
+        if (onboardingRes.status === 404) {
+          // No profile exists yet — go to onboarding
           setLocation("/onboarding");
+        } else {
+          // 200 (complete) or any other status (401, 500, network) — default to dashboard
+          setLocation("/dashboard");
         }
       } catch {
-        setLocation("/onboarding");
+        // Connection error during onboarding check — default to dashboard
+        setLocation("/dashboard");
       }
     } catch {
       setErrorMsg("Something went wrong. Please try again.");
@@ -97,6 +103,11 @@ export default function Login() {
           <CardDescription className="text-synergise-text-muted">Enter your details to access your account</CardDescription>
         </CardHeader>
         <CardContent>
+          {sessionExpired && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 mb-4">
+              Your session expired. Please sign in again.
+            </div>
+          )}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               {errorMsg && (

@@ -110,14 +110,27 @@ export default function Onboarding() {
         credentials: "include",
         body: JSON.stringify({ businessName, industry, region, revenueStage }),
       });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save onboarding");
+
+      if (response.status === 401) {
+        // Session expired — clear state and redirect to login
+        queryClient.clear();
+        setLocation("/login?reason=session-expired");
+        return;
       }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError((data as any).error || "Failed to save your details. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Success — refresh both onboarding and auth caches, then navigate
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       setLocation("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+    } catch {
+      setError("Connection error. Please check your internet and try again.");
       setIsSubmitting(false);
     }
   };

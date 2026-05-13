@@ -1,0 +1,174 @@
+Fix two bugs in the login and onboarding flow. Do not change anything else.
+
+---
+
+## BUG 1: LOGGED-IN USER TAKEN TO ONBOARDING INSTEAD OF DASHBOARD
+
+When a user who has already completed onboarding signs in, they are being sent to /onboarding instead of /dashboard.
+
+Root cause: The login flow checks GET /api/onboarding but is either:
+a) Not sending credentials: 'include' on that check, so it gets a 401 and misreads it as "no profile", OR
+b) The onboarding check runs before the session cookie is fully established
+
+Fix in login.tsx — replace the onboarding check after login with this exact pattern:
+
+```tsx
+const handleSubmit = async (data: LoginFormData) => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    // Step 1: Login
+    const loginResponse = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email: data.email, password: data.password })
+    });
+    const loginResult = await loginResponse.json();
+    if (!loginResponse.ok) {
+      setError('Incorrect email or password');
+      return;
+    }
+
+    // Step 2: Update auth cache
+    queryClient.setQueryData(['/api/auth/me'], loginResult.user);
+
+    // Step 3: Check onboarding status — MUST use credentials: 'include'
+    const onboardingResponse = await fetch('/api/onboarding', {
+      credentials: 'include'  // ← this is critical
+    });
+
+    // Step 4: Navigate based on result
+    if (onboardingResponse.ok) {
+      // Onboarding complete — go to dashboard
+      setLocation('/dashboard');
+    } else if (onboardingResponse.status === 404) {
+      // No profile yet — go to onboarding
+      setLocation('/onboarding');
+    } else {
+      // Any other error (401 etc) — default to dashboard, do not loop back
+      setLocation('/dashboard');
+    }
+  } catch (err) {
+    setError('Something went wrong. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+Key change: if the onboarding check returns anything other than 404, default to /dashboard. Never treat a non-404 error as "onboarding not done".
+
+---
+
+## BUG 2: "UNAUTHORISED" ERROR ON FINAL ONBOARDING STEP
+
+When clicking "Go to Dashboard" on step 4 of onboarding, the POST /api/onboarding call returns 401 Unauthorised.
+
+Root cause: The fetch call in onboarding.tsx is missing credentials: 'include', so the session cookie is not sent with the request.
+
+Fix in onboarding.tsx — replace the handleComplete function with this:
+
+```tsx
+const handleComplete = async () => {
+  setIsSubmitting(true);
+  setError(null);
+  try {
+    const response = await fetch('/api/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',  // ← must be present
+      body: JSON.stringify({
+        businessName,
+        industry,
+        region,
+        revenueStage
+      })
+    });
+
+    if (response.status === 401) {
+      // Session expired — redirect to login with a message
+      queryClient.clear();
+      setLocation('/login?reason=session-expired');
+      return;
+    }
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      setError(data.error || 'Failed to save your details. Please try again.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Success — invalidate onboarding cache and go to dashboard
+    queryClient.invalidateQueries({ queryKey: ['/api/onboarding'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+    setLocation('/dashboard');
+  } catch (err) {
+    setError('Connection error. Please check your internet and try again.');
+    setIsSubmitting(false);
+  }
+};
+```
+
+---
+
+## FIX 3: GLOBAL CREDENTIALS FIX — AUDIT ALL FETCH CALLS
+
+Search every file in the frontend (src/) for any fetch() call that does NOT have credentials: 'include'.
+
+For every fetch call that calls any /api/* endpoint, add credentials: 'include' if it's missing.
+
+This is the root cause of all session-related bugs. The custom-fetch.ts fix from before may not cover manually written fetch() calls.
+
+Also check: is there a central API client or queryFn helper (e.g. in lib/queryClient.ts or lib/api.ts) that all TanStack Query calls use? If yes, ensure it has credentials: 'include' set as a default. Example:
+
+```ts
+export async function apiRequest(method: string, url: string, body?: any) {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    credentials: 'include',  // ← must be here
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return response;
+}
+```
+
+---
+
+## FIX 4: LOGIN PAGE — HANDLE SESSION EXPIRED QUERY PARAM
+
+In login.tsx, check for ?reason=session-expired in the URL and show a friendly message if present:
+
+```tsx
+const [search] = useSearch(); // wouter's useSearch hook
+const sessionExpired = new URLSearchParams(search).get('reason') === 'session-expired';
+
+// In the JSX, above the form:
+{sessionExpired && (
+  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 mb-4">
+    Your session expired. Please sign in again.
+  </div>
+)}
+```
+
+---
+
+## VERIFY AFTER FIX:
+
+1. Sign in with an existing account that has completed onboarding
+   → Must land directly on /dashboard, not /onboarding ✅
+
+2. Register a brand new account
+   → Goes to /onboarding ✅
+   → Complete all 4 steps
+   → Click "Go to Dashboard" → no 401 error → lands on /dashboard ✅
+
+3. Sign out → sign in again
+   → Lands on /dashboard directly ✅
+
+4. Open browser DevTools → Network tab
+   → Every /api/* request must show the session cookie being sent (credentials: include)
+
+Do not change any module pages, database schema, or backend route logic.
