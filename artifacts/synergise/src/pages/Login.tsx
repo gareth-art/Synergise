@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useLogin, useGetOnboarding, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useLogin, getGetMeQueryKey, getOnboarding } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
+  email: z.string().min(1, { message: "Email is required" }).email({ message: "Please enter a valid email address" }),
   password: z.string().min(1, { message: "Password is required" }),
 });
 
@@ -29,7 +29,7 @@ export default function Login() {
   const queryClient = useQueryClient();
   const loginMutation = useLogin();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -41,21 +41,21 @@ export default function Login() {
   async function onSubmit(values: z.infer<typeof loginSchema>) {
     setErrorMsg(null);
     loginMutation.mutate({ data: values }, {
-      onSuccess: async () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-        // Check onboarding status
+      onSuccess: async (responseUser) => {
+        queryClient.setQueryData(getGetMeQueryKey(), responseUser);
         try {
-          // We can't use the hook directly here in a callback easily without another request,
-          // so we navigate to a routing component or just fetch directly.
-          // For simplicity, we just fetch it via standard fetch or assume we navigate to a resolver.
-          // Let's navigate to dashboard, and dashboard will redirect to onboarding if needed.
-          setLocation("/dashboard");
-        } catch (e) {
-          setLocation("/dashboard");
+          const profile = await getOnboarding();
+          if (profile?.onboardingCompletedAt) {
+            setLocation("/dashboard");
+          } else {
+            setLocation("/onboarding");
+          }
+        } catch {
+          setLocation("/onboarding");
         }
       },
-      onError: () => {
-        setErrorMsg("Incorrect email or password");
+      onError: (err: any) => {
+        setErrorMsg(err?.message || "Incorrect email or password");
       }
     });
   }
@@ -104,7 +104,11 @@ export default function Login() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6" disabled={loginMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
+                disabled={loginMutation.isPending}
+              >
                 {loginMutation.isPending ? "Signing in..." : "Sign In"}
               </Button>
             </form>

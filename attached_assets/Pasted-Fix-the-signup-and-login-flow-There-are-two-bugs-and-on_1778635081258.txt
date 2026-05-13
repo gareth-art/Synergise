@@ -1,0 +1,80 @@
+Fix the signup and login flow. There are two bugs and one UX requirement:
+
+---
+
+## BUG 1: SIGNUP LAUNCHES A LOGIN MODAL INSTEAD OF LOGGING IN DIRECTLY
+
+After a user fills in Name, Email, Password, Confirm Password and submits the signup form:
+- The user should be automatically logged in immediately — no login modal should appear
+- The user should be redirected directly to /onboarding
+- A login modal appearing after signup means the session is not being established after registration
+
+Fix in the backend POST /api/auth/signup route:
+- After creating the user, call req.login(user, (err) => { ... }) to establish the Passport session immediately
+- Call req.session.save() before sending the response to eliminate the race condition
+- Return the full user object in the response body (not just a success message)
+
+Fix in the frontend signup page:
+- After a successful POST /api/auth/signup response:
+  1. Call queryClient.setQueryData(['/api/auth/me'], responseUser) immediately to update auth state
+  2. Navigate to /onboarding using setLocation('/onboarding')
+  3. Do NOT show a login modal, do NOT redirect to /login
+
+---
+
+## BUG 2: LOGIN REFRESHES THE SAME PAGE WITHOUT NAVIGATING
+
+After submitting email and password on the login form:
+- The page refreshes but stays on the same screen
+- This means either the session is not being set, or the frontend auth state is not updating after login
+
+Fix in the backend POST /api/auth/login route:
+- Ensure Passport's req.login() is called after authentication
+- Call req.session.save((err) => { res.json(user) }) so the session is persisted before the response is sent
+- Return the full user object in the response
+
+Fix in the frontend login page:
+- After a successful POST /api/auth/login response:
+  1. Call queryClient.setQueryData(['/api/auth/me'], responseUser) to update auth state immediately
+  2. Check if onboarding is complete:
+     - GET /api/onboarding to check if a profile exists for this user
+     - If no profile → navigate to /onboarding
+     - If profile exists → navigate to /dashboard
+  3. Do NOT rely on the auth guard to redirect — navigate explicitly after login
+
+---
+
+## BUG 3: USERNAME FIELD — CLARIFY WHAT IS STORED
+
+Check the signup form fields. The database schema has both 'username' and 'email' fields.
+- The signup form should collect: Full Name, Email, Password, Confirm Password
+- 'username' in the database should be set to the email address (use email as the username value) so Passport local strategy can authenticate by email
+- Ensure POST /api/auth/signup sets: username = email, email = email, fullName = the name field value
+- Ensure POST /api/auth/login accepts email as the username field for Passport local strategy
+
+---
+
+## REQUIREMENT: MAKE NAME AND EMAIL MANDATORY
+
+In signup.tsx:
+- Full Name field: add required validation — "Full name is required"
+- Email field: add required validation + email format validation — "Please enter a valid email address"
+- Password: minimum 8 characters — "Password must be at least 8 characters"
+- Confirm Password: must match password — "Passwords do not match"
+- All validation should be inline using React Hook Form + Zod, not browser native validation
+- The submit button should be disabled until the form is valid
+
+---
+
+## VERIFY AFTER FIX:
+
+1. Go to /signup
+2. Fill in Name, Email, Password, Confirm Password
+3. Submit → user is created → automatically logged in → redirected to /onboarding (no login modal)
+4. Complete onboarding → redirected to /dashboard
+5. Sign out
+6. Go to /login
+7. Enter email and password → logged in → redirected to /dashboard
+8. Leaving Name or Email empty → inline error messages appear, form cannot be submitted
+
+Do not change database schema, onboarding logic, or any other pages.

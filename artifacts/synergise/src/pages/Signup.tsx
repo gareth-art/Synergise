@@ -20,8 +20,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const signupSchema = z.object({
-  fullName: z.string().min(1, { message: "Full Name is required" }),
-  email: z.string().email({ message: "Invalid email address" }),
+  fullName: z.string().min(1, { message: "Full name is required" }),
+  email: z.string().min(1, { message: "Email is required" }).email({ message: "Please enter a valid email address" }),
   password: z.string().min(8, { message: "Password must be at least 8 characters" }),
   confirmPassword: z.string().min(1, { message: "Please confirm your password" }),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -34,7 +34,7 @@ export default function Signup() {
   const queryClient = useQueryClient();
   const signupMutation = useSignup();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -47,16 +47,16 @@ export default function Signup() {
 
   async function onSubmit(values: z.infer<typeof signupSchema>) {
     setErrorMsg(null);
-    signupMutation.mutate({ 
+    signupMutation.mutate({
       data: {
         fullName: values.fullName,
         email: values.email,
         password: values.password,
-        confirmPassword: values.confirmPassword
-      } 
+        confirmPassword: values.confirmPassword,
+      }
     }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      onSuccess: (responseUser) => {
+        queryClient.setQueryData(getGetMeQueryKey(), responseUser);
         setLocation("/onboarding");
       },
       onError: (err: any) => {
@@ -64,6 +64,8 @@ export default function Signup() {
       }
     });
   }
+
+  const isFormValid = form.formState.isValid;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-synergise-background p-4 font-sans">
@@ -135,7 +137,11 @@ export default function Signup() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6" disabled={signupMutation.isPending}>
+              <Button
+                type="submit"
+                className="w-full bg-synergise-primary hover:bg-synergise-primary-dark text-white font-semibold mt-6"
+                disabled={signupMutation.isPending || !isFormValid}
+              >
                 {signupMutation.isPending ? "Creating Account..." : "Create My Account"}
               </Button>
             </form>

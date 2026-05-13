@@ -44,23 +44,31 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  const normalizedEmail = email.toLowerCase().trim();
   const [user] = await db
     .insert(usersTable)
     .values({
-      email: email.toLowerCase().trim(),
+      username: normalizedEmail,
+      email: normalizedEmail,
       password: hashedPassword,
       fullName,
       subscriptionTier: "trial",
     })
     .returning();
 
-  req.login(user, (err) => {
-    if (err) {
+  req.login(user, (loginErr) => {
+    if (loginErr) {
       res.status(500).json({ error: "Login failed after signup" });
       return;
     }
-    const { password: _pw, ...safeUser } = user;
-    res.status(201).json(safeUser);
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        res.status(500).json({ error: "Session save failed" });
+        return;
+      }
+      const { password: _pw, ...safeUser } = user;
+      res.status(201).json(safeUser);
+    });
   });
 });
 
@@ -81,8 +89,14 @@ router.post("/auth/login", (req, res, next): void => {
           next(loginErr);
           return;
         }
-        const { password: _pw, ...safeUser } = user;
-        res.json(safeUser);
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            next(saveErr);
+            return;
+          }
+          const { password: _pw, ...safeUser } = user;
+          res.json(safeUser);
+        });
       });
     }
   )(req, res, next);
