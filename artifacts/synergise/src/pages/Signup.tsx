@@ -64,8 +64,10 @@ export default function Signup() {
 
       // Populate auth cache — server returns the user object directly
       setAuth(data);
-      // Clear any stale onboarding cache so RequireOnboarding starts fresh
-      queryClient.removeQueries({ queryKey: ["onboarding-profile"] });
+      // Clear ALL onboarding-related caches so RequireOnboarding and
+      // useGetOnboarding() both start completely fresh for this new user.
+      queryClient.removeQueries({ queryKey: ["onboarding-guard"] });
+      queryClient.removeQueries({ queryKey: ["/api/onboarding"] });
       // Navigate straight to onboarding — never to login
       setLocation("/onboarding");
     } catch {

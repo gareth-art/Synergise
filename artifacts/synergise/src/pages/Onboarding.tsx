@@ -121,9 +121,11 @@ export default function Onboarding() {
         return;
       }
 
-      // Success
+      // Success — bust ALL onboarding-related caches so RequireOnboarding
+      // and useGetOnboarding() both see the freshly saved profile.
       sessionStorage.removeItem(DRAFT_KEY);
-      queryClient.removeQueries({ queryKey: ["onboarding-profile"] });
+      queryClient.removeQueries({ queryKey: ["onboarding-guard"] });
+      queryClient.removeQueries({ queryKey: ["/api/onboarding"] });
       setLocation("/dashboard");
     } catch {
       setSubmitError("Connection error. Please check your internet and try again.");
