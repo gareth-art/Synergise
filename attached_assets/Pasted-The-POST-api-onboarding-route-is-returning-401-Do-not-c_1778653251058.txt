@@ -1,0 +1,103 @@
+The POST /api/onboarding route is returning 401. Do not change any frontend code. Backend investigation only.
+
+## STEP 1: SHOW ME THESE FILES IN FULL — DO NOT CHANGE ANYTHING YET
+
+1. The complete Express session middleware setup (the full session() config including store, cookie options)
+2. The complete Passport setup (serializeUser, deserializeUser, and the local strategy)
+3. The POST /api/onboarding route handler — show the full function including any auth middleware applied to it
+4. The middleware registration order in app.ts or server/index.ts — show every app.use() call in the order they appear
+
+Just show me the code. No changes yet.
+
+---
+
+## STEP 2: ADD THESE LOGS AND RESTART
+
+After showing me the code above, add these console.log statements and restart the server:
+
+In the requireAuth middleware (or wherever the 401 is generated):
+```ts
+console.log('[AUTH CHECK] isAuthenticated:', req.isAuthenticated());
+console.log('[AUTH CHECK] session id:', req.session?.id);
+console.log('[AUTH CHECK] user:', req.user);
+console.log('[AUTH CHECK] cookie header:', req.headers.cookie);
+```
+
+In passport.deserializeUser:
+```ts
+passport.deserializeUser(async (id: number, done) => {
+  console.log('[DESERIALIZE] Looking up user id:', id);
+  try {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    console.log('[DESERIALIZE] Found user:', result?.id ?? 'NOT FOUND');
+    if (!result) return done(null, false);
+    done(null, result);
+  } catch (err) {
+    console.log('[DESERIALIZE] Error:', err);
+    done(err, null);
+  }
+});
+```
+
+Then submit the onboarding form once and paste the full server console output here.
+
+---
+
+## STEP 3: APPLY FIXES BASED ON WHAT THE LOGS SHOW
+
+Fix A — Apply regardless of what the logs show (most common Replit issue):
+In the session cookie config, set:
+```ts
+cookie: {
+  secure: false,  // Replit uses HTTP internally even though public URL is HTTPS
+  httpOnly: true,
+  sameSite: 'lax',
+  maxAge: 30 * 24 * 60 * 60 * 1000
+}
+```
+
+Fix B — Apply regardless:
+Confirm middleware order is EXACTLY:
+1. express.json()
+2. express.urlencoded()
+3. session() 
+4. passport.initialize()
+5. passport.session()
+6. routes
+
+If order is wrong, fix it.
+
+Fix C — Apply if CORS middleware exists:
+```ts
+app.use(cors({
+  origin: true,
+  credentials: true  // required for cookies
+}));
+```
+
+Fix D — Apply if logs show deserializeUser is not being called at all:
+This means the session cookie is not being sent. Check:
+- Is the session cookie visible in browser DevTools → Application → Cookies after login?
+- If no cookie exists after login, the signup route is not saving the session before responding
+- Fix: in POST /api/auth/signup, wrap the response in req.session.save():
+```ts
+req.login(user, (err) => {
+  if (err) return next(err);
+  req.session.save((saveErr) => {
+    if (saveErr) return next(saveErr);
+    res.json({ user });
+  });
+});
+```
+
+Fix E — Apply if logs show deserializeUser IS called but returns NOT FOUND:
+The user ID is being serialized correctly but the DB lookup is failing.
+Check that the users table query uses the correct column name (id vs userId).
+
+---
+
+## AFTER APPLYING FIXES:
+
+Restart the server and test the onboarding submit again.
+Confirm POST /api/onboarding returns 200 and browser navigates to /dashboard.
+Show the server console logs confirming [AUTH CHECK] isAuthenticated: true.

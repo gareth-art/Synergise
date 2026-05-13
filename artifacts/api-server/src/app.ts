@@ -94,7 +94,7 @@ app.use(
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Replit uses HTTP internally even when public URL is HTTPS
       httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       sameSite: "lax",
