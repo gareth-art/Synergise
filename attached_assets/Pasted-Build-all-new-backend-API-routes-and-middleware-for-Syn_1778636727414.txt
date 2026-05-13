@@ -1,0 +1,119 @@
+Build all new backend API routes and middleware for Synergise. The database tables already exist. Add everything to the existing Express router without breaking current routes.
+
+## ACCESS CONTROL MIDDLEWARE
+Create server/middleware/access-control.ts:
+
+export function requireTier(allowedTiers: string[]) {
+  return (req: any, res: any, next: any) => {
+    const tier = req.user?.subscriptionTier;
+    if (!tier || !allowedTiers.includes(tier)) {
+      return res.status(403).json({ 
+        error: 'Upgrade required',
+        requiredTiers: allowedTiers,
+        currentTier: tier,
+        upgradeUrl: '/dashboard/settings#subscription'
+      });
+    }
+    next();
+  };
+}
+
+export function requireCredits(creditsNeeded: number) {
+  return (req: any, res: any, next: any) => {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if ((user.aiCreditsRemaining ?? 0) < creditsNeeded) {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        creditsNeeded,
+        creditsRemaining: user.aiCreditsRemaining ?? 0,
+        topUpUrl: '/dashboard/settings#credits'
+      });
+    }
+    next();
+  };
+}
+
+## CFO INPUTS ROUTES
+GET /api/cfo-inputs — get all periods for current user from cfo_inputs table
+GET /api/cfo-inputs/:period — get single period entry
+POST /api/cfo-inputs — upsert (insert or update) cfo_inputs for a period for current user
+
+## CFO METRICS ROUTE
+GET /api/cfo-metrics/:period
+- Pull management_accounts row for this period + userId
+- Pull cfo_inputs row for this period + userId
+- Calculate and return these metrics (return null for any where inputs are missing, do not throw):
+  burnRate = (sumOfOpex + cogs) - revenue
+  netBurn = revenue - (sumOfOpex + cogs)
+  cashRunway = cashOnHand / burnRate (months, only if burnRate > 0)
+  workingCapital = totalCurrentAssets - totalCurrentLiabilities
+  currentRatio = totalCurrentAssets / totalCurrentLiabilities
+  quickRatio = (totalCurrentAssets - totalInventory) / totalCurrentLiabilities
+  cashConversionCycle = receivableDays + inventoryDays - payableDays
+  gearingRatio = totalDebt / (totalDebt + totalEquity)
+  debtToEbitda = totalDebt / (ebitda * 12)
+  grossMarginPct — from management_accounts
+  ebitdaMarginPct — ebitda / revenue * 100
+  revenueMoMGrowth — compare revenue to previous month's management_accounts entry
+- Apply tier gating in the response:
+  trial + professional: return only { burnRate, workingCapital, grossMarginPct }
+  cfo-suite: return all metrics
+
+## UNIT ECONOMICS ROUTES
+GET /api/unit-economics — all models for current user (requireTier professional + cfo-suite)
+POST /api/unit-economics — save new model, calculate all outputs server-side before saving (requireTier professional + cfo-suite):
+  contributionMargin = revenuePerUnit - variableCostPerUnit
+  contributionMarginPct = (contributionMargin / revenuePerUnit) * 100
+  breakEvenUnits = fixedCostsPerMonth / contributionMargin
+  breakEvenRevenue = breakEvenUnits * revenuePerUnit
+  safetyMarginPct = ((unitsPerMonth - breakEvenUnits) / unitsPerMonth) * 100
+  monthlyProfit = (contributionMargin * unitsPerMonth) - fixedCostsPerMonth
+DELETE /api/unit-economics/:id (requireTier professional + cfo-suite)
+
+## SCENARIO ROUTES (cfo-suite only)
+GET /api/scenarios?modelId=X — get all scenarios for a financial model (requireTier cfo-suite)
+POST /api/scenarios — save new scenario (requireTier cfo-suite)
+DELETE /api/scenarios/:id (requireTier cfo-suite)
+
+## AI ROUTES
+POST /api/ai/analyse-model (requireTier professional + cfo-suite, requireCredits 5)
+- Input body: { inputs, outputs, industry }
+- Call Anthropic Claude claude-opus-4-5 with system prompt:
+  "You are a financial advisor specialising in Southeast Asian SMEs. Analyse this financial model and provide: 1) A 2-sentence assessment of financial health, 2) The single biggest risk in the numbers, 3) One specific actionable recommendation to improve profitability. Be direct and practical. Under 150 words."
+- On success: deduct 5 credits from user (UPDATE users SET aiCreditsRemaining = aiCreditsRemaining - 5)
+- Return { commentary: string, creditsRemaining: number }
+- If ANTHROPIC_API_KEY not set: return { commentary: null, error: "AI analysis not available — API key not configured" }
+
+POST /api/ai/cfo-commentary (requireTier cfo-suite, requireCredits 10)
+- Input body: { metrics, period, industry }
+- System prompt: "You are a CFO advisor for a Southeast Asian founder-operated business. Review these financial metrics and provide: 1) One-sentence overall health assessment, 2) Top 2 metrics needing immediate attention and why, 3) One strategic recommendation for the next 90 days. Be specific. Under 200 words."
+- On success: deduct 10 credits
+- Return { commentary: string, creditsRemaining: number }
+
+POST /api/ai/benchmark-insight (requireTier professional + cfo-suite, requireCredits 3)
+- Input body: { userMetrics, benchmarks, industry }
+- System prompt: "You are a business analyst for Southeast Asian SMEs. Compare these business metrics to industry benchmarks. Identify the 2 metrics where they perform best and the 1 metric most needing improvement. Give one specific action for the weakest metric. Under 100 words."
+- On success: deduct 3 credits
+- Return { commentary: string, creditsRemaining: number }
+
+## CREDITS ROUTES
+GET /api/credits — return { aiCreditsRemaining, aiCreditsMonthlyAllowance, creditsResetDate } for current user
+POST /api/credits/topup — placeholder for Stripe top-up (return { message: "Payment system coming soon" } if STRIPE_SECRET_KEY not set)
+
+## MONTHLY CREDITS RESET
+In server/index.ts, add after server starts:
+setInterval(async () => {
+  // Find users where creditsResetDate <= now
+  // Reset aiCreditsRemaining = aiCreditsMonthlyAllowance
+  // Set creditsResetDate = now + 30 days
+  // Log count of users reset
+}, 24 * 60 * 60 * 1000); // run every 24 hours
+
+## CREDITS ON SUBSCRIPTION CHANGE
+When subscriptionTier is updated (wherever that logic lives):
+- professional → set aiCreditsMonthlyAllowance = 50, aiCreditsRemaining = 50, creditsResetDate = now + 30 days
+- cfo-suite → set aiCreditsMonthlyAllowance = 200, aiCreditsRemaining = 200, creditsResetDate = now + 30 days
+- trial → set aiCreditsMonthlyAllowance = 0, aiCreditsRemaining = 0
+
+After build: confirm all routes return correct status codes with the test accounts (SME/test for professional, ENT/test2 for cfo-suite simulation). Run full typecheck.
