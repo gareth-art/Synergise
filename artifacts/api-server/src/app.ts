@@ -5,13 +5,13 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import bcrypt from "bcrypt";
-import MemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
-const MemoryStoreSession = MemoryStore(session);
+const PgStore = connectPg(session);
 
 // Passport local strategy
 passport.use(
@@ -90,8 +90,10 @@ app.use(
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    store: new MemoryStoreSession({
-      checkPeriod: 86400000,
+    store: new PgStore({
+      conString: process.env.DATABASE_URL,
+      tableName: "session",
+      ttl: 30 * 24 * 60 * 60, // 30 days in seconds
     }),
     cookie: {
       secure: false, // Replit uses HTTP internally even when public URL is HTTPS
