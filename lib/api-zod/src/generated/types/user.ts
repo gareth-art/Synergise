@@ -17,4 +17,8 @@ export interface User {
   trialStartDate?: string | null;
   /** @nullable */
   createdAt?: string | null;
+  aiCreditsRemaining?: number;
+  aiCreditsMonthlyAllowance?: number;
+  /** @nullable */
+  creditsResetDate?: string | null;
 }

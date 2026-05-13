@@ -25,6 +25,9 @@ export const GetMeResponse = zod.object({
   subscriptionTier: zod.string(),
   trialStartDate: zod.string().nullish(),
   createdAt: zod.string().nullish(),
+  aiCreditsRemaining: zod.number().optional(),
+  aiCreditsMonthlyAllowance: zod.number().optional(),
+  creditsResetDate: zod.string().nullish(),
 });
 
 /**
@@ -56,6 +59,9 @@ export const LoginResponse = zod.object({
   subscriptionTier: zod.string(),
   trialStartDate: zod.string().nullish(),
   createdAt: zod.string().nullish(),
+  aiCreditsRemaining: zod.number().optional(),
+  aiCreditsMonthlyAllowance: zod.number().optional(),
+  creditsResetDate: zod.string().nullish(),
 });
 
 /**

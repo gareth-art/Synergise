@@ -14,6 +14,8 @@ import Modelling from "@/pages/dashboard/Modelling";
 import Accounts from "@/pages/dashboard/Accounts";
 import Comparables from "@/pages/dashboard/Comparables";
 import Settings from "@/pages/dashboard/Settings";
+import CfoMetrics from "@/pages/dashboard/CfoMetrics";
+import UnitEconomics from "@/pages/dashboard/UnitEconomics";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -25,7 +27,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/admin" component={Admin} />
-      
+
       {/* Protected Routes */}
       <Route path="/onboarding">
         <ProtectedRoute>
@@ -52,12 +54,22 @@ function Router() {
           <Comparables />
         </ProtectedRoute>
       </Route>
+      <Route path="/dashboard/cfo-metrics">
+        <ProtectedRoute>
+          <CfoMetrics />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/dashboard/unit-economics">
+        <ProtectedRoute>
+          <UnitEconomics />
+        </ProtectedRoute>
+      </Route>
       <Route path="/dashboard/settings">
         <ProtectedRoute>
           <Settings />
         </ProtectedRoute>
       </Route>
-      
+
       <Route component={NotFound} />
     </Switch>
   );

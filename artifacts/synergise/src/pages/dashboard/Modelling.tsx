@@ -1,29 +1,26 @@
-import { useState, useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useState } from "react";
 import { format } from "date-fns";
-import { 
-  useGetOnboarding, 
-  useGetModels, 
-  useCreateModel, 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useGetOnboarding,
+  useGetModels,
+  useCreateModel,
   useDeleteModel,
-  getGetModelsQueryKey 
+  getGetModelsQueryKey,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Calculator, Plus, Save } from "lucide-react";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Trash2, Calculator, Save, Lock, Plus, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 // Mapping industries to specific inputs
-const industryConfig: Record<string, { key: string, label: string, type: 'number' | 'percent' }[]> = {
+const industryConfig: Record<string, { key: string; label: string; type: "number" | "percent" }[]> = {
   "Wellness & Lifestyle": [
     { key: "rooms", label: "Rooms / Spaces", type: "number" },
     { key: "occupancyRate", label: "Occupancy Rate %", type: "percent" },
@@ -79,37 +76,34 @@ const industryConfig: Record<string, { key: string, label: string, type: 'number
     { key: "grossMarginPercent", label: "Gross Margin %", type: "percent" },
     { key: "fixedCosts", label: "Fixed Costs (SGD)", type: "number" },
   ],
-  "Other": [
+  Other: [
     { key: "monthlyRevenue", label: "Monthly Revenue (SGD)", type: "number" },
     { key: "cogs", label: "COGS (SGD)", type: "number" },
     { key: "operatingExpenses", label: "Operating Expenses (SGD)", type: "number" },
-  ]
+  ],
 };
 
-// Math calculations
 function calculateOutputs(industry: string, inputs: Record<string, number>): Record<string, number | string> {
   const out: Record<string, number | string> = {};
-  
   if (industry === "Wellness & Lifestyle") {
     const { rooms = 0, occupancyRate = 0, revenuePerGuest = 0, sessionsPerDay = 0, staffCost = 0, fixedCosts = 0 } = inputs;
-    const rev = rooms * (occupancyRate/100) * sessionsPerDay * 30 * revenuePerGuest;
-    const gp = rev; // assuming no direct COGS for wellness in this simple model
+    const rev = rooms * (occupancyRate / 100) * sessionsPerDay * 30 * revenuePerGuest;
     const ebitda = rev - staffCost - fixedCosts;
     const breakeven = rev > 0 ? ((staffCost + fixedCosts) / (sessionsPerDay * 30 * revenuePerGuest)) * 100 : 0;
     out["Monthly Revenue"] = rev;
-    out["Gross Profit"] = gp;
+    out["Gross Profit"] = rev;
     out["EBITDA"] = ebitda;
     out["Break-even occupancy %"] = breakeven;
   } else if (industry === "Consumer Products & Apparel") {
     const { avgSellingPrice = 0, unitsPerMonth = 0, cogsPerUnit = 0, returnsPercent = 0, marketingSpend = 0, fixedOverhead = 0 } = inputs;
-    const validUnits = unitsPerMonth * (1 - returnsPercent/100);
+    const validUnits = unitsPerMonth * (1 - returnsPercent / 100);
     const rev = validUnits * avgSellingPrice;
-    const cogsTotal = unitsPerMonth * cogsPerUnit; // still pay for returned items usually
+    const cogsTotal = unitsPerMonth * cogsPerUnit;
     const gp = rev - cogsTotal;
     const gpMargin = rev > 0 ? (gp / rev) * 100 : 0;
     const net = gp - marketingSpend - fixedOverhead;
     const netMargin = rev > 0 ? (net / rev) * 100 : 0;
-    const breakeven = (avgSellingPrice - cogsPerUnit) > 0 ? (marketingSpend + fixedOverhead) / (avgSellingPrice - cogsPerUnit) : 0;
+    const breakeven = avgSellingPrice - cogsPerUnit > 0 ? (marketingSpend + fixedOverhead) / (avgSellingPrice - cogsPerUnit) : 0;
     out["Monthly Revenue"] = rev;
     out["Gross Margin %"] = gpMargin;
     out["Net Margin %"] = netMargin;
@@ -119,7 +113,7 @@ function calculateOutputs(industry: string, inputs: Record<string, number>): Rec
     const mrr = activeMembers * monthlyFee;
     const arr = mrr * 12;
     const marginPerUser = monthlyFee - variableCostPerMember;
-    const lifetime = churnPercent > 0 ? 1 / (churnPercent/100) : 0;
+    const lifetime = churnPercent > 0 ? 1 / (churnPercent / 100) : 0;
     const ltv = marginPerUser * lifetime;
     const ltvCac = cac > 0 ? ltv / cac : 0;
     const breakeven = marginPerUser > 0 ? fixedCosts / marginPerUser : 0;
@@ -131,8 +125,8 @@ function calculateOutputs(industry: string, inputs: Record<string, number>): Rec
   } else if (industry === "Professional Services") {
     const { billableStaff = 0, billableRate = 0, utilisationPercent = 0, hoursPerMonth = 0, fixedOverhead = 0 } = inputs;
     const capacity = billableStaff * hoursPerMonth * billableRate;
-    const rev = capacity * (utilisationPercent/100);
-    const gp = rev - fixedOverhead; // Simplified GP
+    const rev = capacity * (utilisationPercent / 100);
+    const gp = rev - fixedOverhead;
     const gpMargin = rev > 0 ? (gp / rev) * 100 : 0;
     const revPerFte = billableStaff > 0 ? rev / billableStaff : 0;
     out["Revenue capacity"] = capacity;
@@ -140,27 +134,27 @@ function calculateOutputs(industry: string, inputs: Record<string, number>): Rec
     out["Gross Margin %"] = gpMargin;
     out["Revenue per FTE"] = revPerFte;
   } else if (industry === "F&B & Hospitality") {
-    const { seats = 0, coversPerDay = 0, spendPerCover = 0, foodCostPercent = 0, labourCostPercent = 0, fixedCosts = 0 } = inputs;
+    const { coversPerDay = 0, spendPerCover = 0, foodCostPercent = 0, labourCostPercent = 0, fixedCosts = 0 } = inputs;
     const rev = coversPerDay * spendPerCover * 30;
-    const gp = rev * (1 - foodCostPercent/100);
-    const labour = rev * (labourCostPercent/100);
+    const gp = rev * (1 - foodCostPercent / 100);
+    const labour = rev * (labourCostPercent / 100);
     const ebitda = gp - labour - fixedCosts;
-    const breakevenRev = (gp/rev) > 0 ? (labour + fixedCosts) / (gp/rev) : 0;
-    const breakevenCovers = spendPerCover > 0 ? (breakevenRev / 30) / spendPerCover : 0;
+    const breakevenRev = gp / rev > 0 ? (labour + fixedCosts) / (gp / rev) : 0;
+    const breakevenCovers = spendPerCover > 0 ? breakevenRev / 30 / spendPerCover : 0;
     out["Monthly Revenue"] = rev;
     out["Gross Profit"] = gp;
     out["EBITDA"] = ebitda;
     out["Break-even covers/day"] = breakevenCovers;
   } else if (industry === "E-commerce & Retail") {
     const { monthlyVisitors = 0, conversionPercent = 0, aov = 0, cogsPercent = 0, marketingSpend = 0, fixedCosts = 0 } = inputs;
-    const orders = monthlyVisitors * (conversionPercent/100);
+    const orders = monthlyVisitors * (conversionPercent / 100);
     const rev = orders * aov;
-    const cogs = rev * (cogsPercent/100);
+    const cogs = rev * (cogsPercent / 100);
     const gp = rev - cogs;
     const gpMargin = rev > 0 ? (gp / rev) * 100 : 0;
     const cac = orders > 0 ? marketingSpend / orders : 0;
     const ebitda = gp - marketingSpend - fixedCosts;
-    const breakevenOrders = (aov - (aov * cogsPercent/100)) > 0 ? (marketingSpend + fixedCosts) / (aov - (aov * cogsPercent/100)) : 0;
+    const breakevenOrders = aov - aov * (cogsPercent / 100) > 0 ? (marketingSpend + fixedCosts) / (aov - aov * (cogsPercent / 100)) : 0;
     out["Monthly Revenue"] = rev;
     out["Gross Margin %"] = gpMargin;
     out["CAC"] = cac;
@@ -169,11 +163,10 @@ function calculateOutputs(industry: string, inputs: Record<string, number>): Rec
     const { payingCustomers = 0, arpu = 0, churnPercent = 0, cac = 0, grossMarginPercent = 0, fixedCosts = 0 } = inputs;
     const mrr = payingCustomers * arpu;
     const arr = mrr * 12;
-    const lifetime = churnPercent > 0 ? 1 / (churnPercent/100) : 0;
-    const marginPerUser = arpu * (grossMarginPercent/100);
+    const lifetime = churnPercent > 0 ? 1 / (churnPercent / 100) : 0;
+    const marginPerUser = arpu * (grossMarginPercent / 100);
     const ltv = marginPerUser * lifetime;
     const ltvCac = cac > 0 ? ltv / cac : 0;
-    const ebitda = (mrr * (grossMarginPercent/100)) - fixedCosts; // Ignoring new CAC for ebitda in simple model
     const monthsToBreakeven = marginPerUser > 0 ? cac / marginPerUser : 0;
     out["MRR"] = mrr;
     out["ARR"] = arr;
@@ -191,23 +184,272 @@ function calculateOutputs(industry: string, inputs: Record<string, number>): Rec
     out["EBITDA"] = ebitda;
     out["Net Margin %"] = netMargin;
   }
-  
   return out;
 }
 
+interface ScenarioPlan {
+  id: number;
+  scenarioName: string;
+  adjustments: Record<string, number>;
+  outputs: Record<string, number | string>;
+  createdAt: string;
+}
+
+function formatValue(val: number | string, key: string) {
+  if (typeof val === "string") return val;
+  if (key.includes("%") || key.includes("margin") || key.includes("Rate") || key.includes("percent")) {
+    return val.toFixed(1) + "%";
+  }
+  if (key.includes("CAC") || key.includes("LTV") || key.includes("Revenue") || key.includes("Profit") || key.includes("EBITDA") || key.includes("MRR") || key.includes("ARR")) {
+    return "$" + val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+  return val.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+
+function ScenarioSection({ modelId, baseInputs, baseOutputs, industry, userTier }: {
+  modelId: number | null;
+  baseInputs: Record<string, number>;
+  baseOutputs: Record<string, number | string>;
+  industry: string;
+  userTier: string;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
+  const [scenarioInputs, setScenarioInputs] = useState<Record<string, number>>(baseInputs);
+  const [saving, setSaving] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const fields = industryConfig[industry] || industryConfig["Other"];
+
+  const { data: scenarios } = useQuery<ScenarioPlan[]>({
+    queryKey: ["/api/scenarios", modelId],
+    queryFn: async () => {
+      const res = await fetch(`/api/scenarios?modelId=${modelId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!modelId && userTier === "cfo-suite",
+  });
+
+  const handleSaveScenario = async () => {
+    if (!modelId) return;
+    setSaving(true);
+    const outputs = calculateOutputs(industry, scenarioInputs);
+    try {
+      const res = await fetch("/api/scenarios", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          financialModelId: modelId,
+          scenarioName: scenarioName || `Scenario ${new Date().toLocaleDateString()}`,
+          adjustments: scenarioInputs,
+          outputs,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", modelId] });
+      toast({ title: "Scenario saved" });
+      setShowForm(false);
+      setScenarioName("");
+    } catch {
+      toast({ title: "Failed to save scenario", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    const res = await fetch(`/api/scenarios/${id}`, { method: "DELETE", credentials: "include" });
+    if (res.ok) {
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", modelId] });
+      toast({ title: "Scenario deleted" });
+    }
+  };
+
+  if (userTier !== "cfo-suite") {
+    return (
+      <Card className="border-synergise-border">
+        <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-synergise-accent text-synergise-primary shrink-0">
+            <Lock className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-synergise-text">Scenario Planning</h3>
+            <p className="text-sm text-synergise-text-muted mt-1">
+              Compare what-if scenarios side by side. See how price changes, cost reductions, or volume shifts affect your bottom line.
+            </p>
+            <p className="text-xs text-synergise-text-muted mt-1 font-medium">Available on CFO Suite</p>
+          </div>
+          <Button asChild size="sm" className="bg-synergise-primary hover:bg-synergise-primary-dark shrink-0">
+            <Link href="/dashboard/settings#subscription">Upgrade</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const allScenarios = scenarios ?? [];
+  const outputKeys = Object.keys(baseOutputs);
+
+  // Find scenario with best profit/EBITDA
+  const profitKey = outputKeys.find((k) => k.includes("Profit") || k.includes("EBITDA") || k.includes("MRR"));
+  const bestScenarioId = allScenarios.reduce<number | null>((best, s) => {
+    if (!profitKey) return best;
+    const v = Number((s.outputs as any)[profitKey] ?? 0);
+    const bestV = best ? Number((allScenarios.find((x) => x.id === best)?.outputs as any)?.[profitKey] ?? 0) : -Infinity;
+    return v > bestV ? s.id : best;
+  }, null);
+
+  return (
+    <Card className="border-synergise-border">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">Scenario Planning</CardTitle>
+            <CardDescription>Compare what-if scenarios against your base model</CardDescription>
+          </div>
+          {modelId && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setShowForm(!showForm); setScenarioInputs({ ...baseInputs }); }}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add Scenario
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!modelId && (
+          <p className="text-sm text-synergise-text-muted">Save a model above to start creating scenarios.</p>
+        )}
+
+        {/* Add scenario form */}
+        {showForm && modelId && (
+          <Card className="border-dashed border-synergise-border">
+            <CardContent className="p-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label>Scenario Name</Label>
+                <Input
+                  placeholder="e.g. Price increase 15%"
+                  value={scenarioName}
+                  onChange={(e) => setScenarioName(e.target.value)}
+                  className="focus-visible:ring-synergise-primary"
+                />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {fields.map((field) => (
+                  <div key={field.key} className="space-y-1">
+                    <Label className="text-xs">{field.label}</Label>
+                    <Input
+                      type="number"
+                      value={scenarioInputs[field.key] ?? ""}
+                      onChange={(e) =>
+                        setScenarioInputs((prev) => ({ ...prev, [field.key]: parseFloat(e.target.value) || 0 }))
+                      }
+                      className="focus-visible:ring-synergise-primary h-8 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveScenario}
+                  disabled={saving}
+                  className="bg-synergise-primary hover:bg-synergise-primary-dark"
+                >
+                  {saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                  Save Scenario
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Scenarios comparison table */}
+        {allScenarios.length > 0 && outputKeys.length > 0 && (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Scenario</TableHead>
+                  {outputKeys.map((k) => <TableHead key={k} className="text-right">{k}</TableHead>)}
+                  {profitKey && <TableHead className="text-right">vs Base</TableHead>}
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Base model row */}
+                <TableRow className="bg-synergise-background">
+                  <TableCell className="font-medium text-synergise-text-muted">Base Model</TableCell>
+                  {outputKeys.map((k) => (
+                    <TableCell key={k} className="text-right text-synergise-text-muted">
+                      {formatValue(baseOutputs[k] ?? 0, k)}
+                    </TableCell>
+                  ))}
+                  {profitKey && <TableCell className="text-right text-synergise-text-muted">—</TableCell>}
+                  <TableCell />
+                </TableRow>
+                {allScenarios.map((s) => {
+                  const isBest = s.id === bestScenarioId && allScenarios.length > 0;
+                  const baseProfit = profitKey ? Number(baseOutputs[profitKey] ?? 0) : 0;
+                  const scenProfit = profitKey ? Number((s.outputs as any)[profitKey] ?? 0) : 0;
+                  const diffPct = baseProfit !== 0 ? ((scenProfit - baseProfit) / Math.abs(baseProfit)) * 100 : 0;
+                  return (
+                    <TableRow key={s.id} className={isBest ? "border-l-2 border-l-green-500" : ""}>
+                      <TableCell className="font-medium">{s.scenarioName}</TableCell>
+                      {outputKeys.map((k) => (
+                        <TableCell key={k} className="text-right">
+                          {formatValue((s.outputs as any)[k] ?? 0, k)}
+                        </TableCell>
+                      ))}
+                      {profitKey && (
+                        <TableCell className={`text-right font-medium ${diffPct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                          {diffPct >= 0 ? "+" : ""}{diffPct.toFixed(1)}%
+                        </TableCell>
+                      )}
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(s.id)}
+                          className="text-synergise-text-muted hover:text-synergise-error h-8 w-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Modelling() {
+  const { user } = useAuth();
   const { data: onboarding } = useGetOnboarding();
   const { data: models, isLoading: isModelsLoading } = useGetModels();
   const createModelMutation = useCreateModel();
   const deleteModelMutation = useDeleteModel();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const [inputs, setInputs] = useState<Record<string, number>>({});
   const [outputs, setOutputs] = useState<Record<string, number | string>>({});
+  const [lastSavedModelId, setLastSavedModelId] = useState<number | null>(null);
 
   const userIndustry = onboarding?.industry || "Other";
   const fields = industryConfig[userIndustry] || industryConfig["Other"];
+  const userTier = user?.subscriptionTier ?? "trial";
 
   const handleInputChange = (key: string, value: string) => {
     const numValue = parseFloat(value) || 0;
@@ -218,43 +460,36 @@ export default function Modelling() {
 
   const handleSave = () => {
     const modelName = `Model ${format(new Date(), "MMM dd, yyyy HH:mm")}`;
-    createModelMutation.mutate({
-      data: {
-        industry: userIndustry,
-        modelName,
-        inputs: inputs as any,
-        outputs: outputs as any
+    createModelMutation.mutate(
+      { data: { industry: userIndustry, modelName, inputs: inputs as any, outputs: outputs as any } },
+      {
+        onSuccess: (model) => {
+          queryClient.invalidateQueries({ queryKey: getGetModelsQueryKey() });
+          setLastSavedModelId((model as any).id ?? null);
+          toast({ title: "Model saved successfully" });
+        },
+        onError: () => {
+          toast({ title: "Failed to save model", variant: "destructive" });
+        },
       }
-    }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetModelsQueryKey() });
-        toast({ title: "Model saved successfully" });
-      },
-      onError: () => {
-        toast({ title: "Failed to save model", variant: "destructive" });
-      }
-    });
+    );
   };
 
   const handleDelete = (id: number) => {
-    deleteModelMutation.mutate({ id }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetModelsQueryKey() });
-        toast({ title: "Model deleted" });
+    deleteModelMutation.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetModelsQueryKey() });
+          if (lastSavedModelId === id) setLastSavedModelId(null);
+          toast({ title: "Model deleted" });
+        },
       }
-    });
+    );
   };
 
-  const formatValue = (val: number | string, key: string) => {
-    if (typeof val === 'string') return val;
-    if (key.includes('%') || key.includes('margin') || key.includes('Rate') || key.includes('percent')) {
-      return val.toFixed(1) + '%';
-    }
-    if (key.includes('CAC') || key.includes('LTV') || key.includes('Revenue') || key.includes('Profit') || key.includes('EBITDA') || key.includes('MRR') || key.includes('ARR')) {
-      return '$' + val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    }
-    return val.toLocaleString(undefined, { maximumFractionDigits: 1 });
-  };
+  // Use the most recently saved model's id for scenario planning
+  const activeModelId = lastSavedModelId ?? (models && models.length > 0 ? models[models.length - 1].id : null);
 
   return (
     <DashboardLayout>
@@ -277,10 +512,10 @@ export default function Modelling() {
               {fields.map((field) => (
                 <div key={field.key} className="space-y-2">
                   <Label htmlFor={field.key} className="text-synergise-text">{field.label}</Label>
-                  <Input 
+                  <Input
                     id={field.key}
-                    type="number" 
-                    value={inputs[field.key] || ""} 
+                    type="number"
+                    value={inputs[field.key] || ""}
                     onChange={(e) => handleInputChange(field.key, e.target.value)}
                     className="focus-visible:ring-synergise-primary"
                   />
@@ -299,9 +534,7 @@ export default function Modelling() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   {Object.keys(outputs).length === 0 ? (
-                    <div className="col-span-2 text-center py-8 text-white/70">
-                      Enter values to see projections
-                    </div>
+                    <div className="col-span-2 text-center py-8 text-white/70">Enter values to see projections</div>
                   ) : (
                     Object.entries(outputs).map(([key, val]) => (
                       <div key={key} className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
@@ -313,8 +546,8 @@ export default function Modelling() {
                 </div>
               </CardContent>
               <CardFooter className="pt-2">
-                <Button 
-                  onClick={handleSave} 
+                <Button
+                  onClick={handleSave}
                   disabled={Object.keys(outputs).length === 0 || createModelMutation.isPending}
                   className="w-full bg-white text-synergise-primary hover:bg-gray-100 font-semibold"
                 >
@@ -331,9 +564,7 @@ export default function Modelling() {
                 {isModelsLoading ? (
                   <div className="text-center py-4">Loading...</div>
                 ) : !models || models.length === 0 ? (
-                  <div className="text-center py-8 text-synergise-text-muted">
-                    No models saved yet.
-                  </div>
+                  <div className="text-center py-8 text-synergise-text-muted">No models saved yet.</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
@@ -352,9 +583,9 @@ export default function Modelling() {
                             </TableCell>
                             <TableCell className="font-medium">{model.modelName}</TableCell>
                             <TableCell className="text-right">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => handleDelete(model.id)}
                                 className="text-synergise-text-muted hover:text-synergise-error"
                               >
@@ -371,6 +602,15 @@ export default function Modelling() {
             </Card>
           </div>
         </div>
+
+        {/* Scenario Planning Section */}
+        <ScenarioSection
+          modelId={activeModelId}
+          baseInputs={inputs}
+          baseOutputs={outputs}
+          industry={userIndustry}
+          userTier={userTier}
+        />
       </div>
     </DashboardLayout>
   );

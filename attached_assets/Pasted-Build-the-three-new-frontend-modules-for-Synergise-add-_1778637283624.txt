@@ -1,0 +1,155 @@
+Build the three new frontend modules for Synergise, add the AI credits display, and implement tiered AI model selection. All backend routes already exist. Do not change any existing pages.
+
+---
+
+## 0. BACKEND ADDITION BEFORE FRONTEND — AI MODEL CONFIGURATION
+
+### Add to database (admin_config table):
+Create a new table via Drizzle and run db:push:
+- id (serial primary key)
+- key (text, unique) — configuration key
+- value (text) — configuration value
+- updatedAt (timestamp, defaultNow())
+
+Seed with these two rows:
+- key: 'ai_model_professional', value: 'claude-haiku-4-5'
+- key: 'ai_model_cfo_suite', value: 'claude-opus-4-5'
+
+### Update AI route logic in server routes:
+In all three AI routes (POST /api/ai/analyse-model, /api/ai/cfo-commentary, /api/ai/benchmark-insight):
+
+Replace any hardcoded model name with a dynamic lookup:
+```ts
+const userTier = req.user?.subscriptionTier;
+const modelKey = userTier === 'cfo-suite' ? 'ai_model_cfo_suite' : 'ai_model_professional';
+const configRow = await db.select().from(adminConfig).where(eq(adminConfig.key, modelKey)).limit(1);
+const modelName = configRow?.value ?? 'claude-haiku-4-5'; // safe fallback
+```
+
+Then use modelName in the Anthropic client.messages.create() call.
+
+### Add admin config API routes:
+GET /api/admin/config — return all admin_config rows (admin auth required — check req.session for ADMIN_PASSWORD)
+PATCH /api/admin/config/:key — update a config value (admin auth required)
+Body: { value: string }
+
+### Update /admin page (admin.tsx):
+Add a new "AI Configuration" section below the segments table:
+- Table showing current config keys and values
+- Editable inline: clicking a value shows a text input + Save button → PATCH /api/admin/config/:key
+- Show these rows with friendly labels:
+  - ai_model_professional → "Professional tier AI model" (current: claude-haiku-4-5)
+  - ai_model_cfo_suite → "CFO Suite AI model" (current: claude-opus-4-5)
+- Add a note below: "Valid Anthropic models: claude-haiku-4-5, claude-opus-4-5, claude-sonnet-4-5"
+
+---
+
+## 1. ADD TO SIDEBAR NAVIGATION (dashboard layout)
+Add two new items to the sidebar after "Comparables":
+- CFO Metrics (TrendingUp icon) → /dashboard/cfo-metrics — visible to all tiers
+- Unit Economics (Calculator icon) → /dashboard/unit-economics — visible to all tiers
+Add these routes to App.tsx / dashboard router.
+
+---
+
+## 2. CFO METRICS PAGE (/dashboard/cfo-metrics)
+
+For trial + professional users:
+- Page heading: "CFO Metrics"
+- Show two metric tiles: Burn Rate and Working Capital (from GET /api/cfo-metrics/[latest period])
+- Burn Rate: positive value = red badge "Burning cash", negative = green badge "Cash flow positive"
+- Below tiles: locked section with blurred/greyed metric name grid (Current Ratio, Quick Ratio, Cash Runway, Cash Conversion Cycle, Gearing Ratio, Debt/EBITDA, Revenue Growth MoM, EBITDA Margin, Net Burn)
+- Upgrade card overlay: "Unlock the Full CFO Dashboard" heading, "Get all 12 CFO metrics with CFO Suite — $149/month" body, "Upgrade to CFO Suite" primary button → /dashboard/settings#subscription
+
+For cfo-suite users:
+- Period selector dropdown (list periods from GET /api/cfo-inputs, default to latest)
+- Collapsible "Balance Sheet Inputs" section with all cfo_inputs fields, Save button → POST /api/cfo-inputs
+- Metrics grid (3 cols desktop, 1 col mobile) from GET /api/cfo-metrics/:period
+- Each metric tile: metric name, large formatted value, trend arrow vs previous period, tooltip with formula + healthy range
+- Cash Runway tile: coloured progress indicator (green >12 months, amber 6–12 months, red <6 months)
+- Null values show "—" with "Add inputs above" tooltip
+- "Get AI Analysis (10 credits)" button → POST /api/ai/cfo-commentary → display response in a card below metrics grid
+- Button shows "Powered by Claude Opus" label so users know they're getting the premium model
+
+---
+
+## 3. UNIT ECONOMICS PAGE (/dashboard/unit-economics)
+
+For trial users:
+- Upgrade prompt: "Unit Economics is available on Professional and CFO Suite"
+- "Upgrade to Professional — $49/month" button → /dashboard/settings#subscription
+
+For professional + cfo-suite users:
+- Page heading: "Unit Economics"
+- Subheading: "Understand the profitability of every unit you sell"
+- Input form with dynamic labels based on user's industry from onboarding profile:
+  - Model Name (text)
+  - Revenue per unit — label: "Per guest" (wellness), "Per order" (ecommerce), "Per member/month" (membership), "Per project" (professional-services), "Per cover" (fnb), "Per unit" (consumer-products/other/saas)
+  - Variable cost per unit (SGD)
+  - Fixed costs per month (SGD)
+  - Units per month — label: "Guests/month", "Orders/month", "Members", "Projects/month", "Covers/day", "Units/month"
+  - "Calculate & Save" button → POST /api/unit-economics
+- Results card (shown after successful save, using returned calculated values):
+  - 6 metric tiles 2×3 grid: Contribution Margin (SGD), Contribution Margin %, Break-even Units, Break-even Revenue (SGD), Safety Margin %, Monthly Profit (SGD)
+  - Monthly Profit: green if positive, red if negative
+  - Break-even Recharts LineChart: x-axis units 0 to 2× current units, two lines (Total Revenue, Total Costs), dashed vertical line at break-even, dot on each line at current units
+- "Analyse with AI (5 credits)" button → POST /api/ai/analyse-model → show commentary card
+- Button shows "Powered by Claude Haiku" for professional, "Powered by Claude Opus" for cfo-suite
+- Saved models list: GET /api/unit-economics, show model name, contribution margin %, break-even units, monthly profit, delete button
+
+---
+
+## 4. SCENARIO PLANNING (add to /dashboard/modelling, cfo-suite only)
+
+After existing model results are shown, add a "Scenarios" section at the bottom of the page.
+
+For trial + professional:
+- Locked card: "Scenario Planning — Compare what-if scenarios side by side. See how price changes, cost reductions, or volume shifts affect your bottom line."
+- "Available on CFO Suite" with upgrade button
+
+For cfo-suite:
+- "Add Scenario" button → inline form with same input fields as base model, pre-filled with base values, plus Scenario Name field at top
+- "Save Scenario" → POST /api/scenarios with modelId + modified inputs
+- Scenarios comparison table below:
+  - Columns: Scenario Name + all key output metrics for this industry + vs Base % column
+  - Rows: Base Model (first row, greyed) + each saved scenario
+  - Row with highest monthly profit/EBITDA highlighted with green left border
+  - Delete button per scenario row
+
+---
+
+## 5. AI CREDITS DISPLAY (dashboard top bar)
+
+For professional + cfo-suite users only:
+- "⚡ X credits" display in top bar (GET /api/credits on mount, refetch after every AI call using TanStack Query invalidation)
+- Clicking opens a modal:
+  - Credits remaining: X of Y monthly allowance
+  - Resets on: [creditsResetDate formatted as "1 June 2026"]
+  - Credit costs: Analyse Model = 5 credits, Benchmark Insight = 3 credits, CFO Commentary = 10 credits
+  - "Buy 50 credits — $10" button → POST /api/credits/topup (shows "Payment system coming soon" if Stripe not configured)
+
+For trial users: hide credits display entirely, show "Upgrade to use AI" tooltip on any AI button.
+
+On every AI button across all modules:
+- Show cost and model: "Analyse with AI (5 credits · Haiku)" for professional, "Analyse with AI (5 credits · Opus)" for cfo-suite
+- If credits = 0: disable button, show "No credits — Top up" link to settings
+- If trial: show "Upgrade to Professional to use AI"
+- After successful AI call: invalidate ['/api/credits'] query to refresh display immediately
+
+---
+
+## IMPORTANT RULES:
+- Do not break any existing auth, onboarding, routing, comparables, or management accounts functionality
+- All paywalled sections must show styled upgrade prompts — never blank screens or errors
+- AI calls must deduct credits only after confirmed successful Anthropic response
+- If ANTHROPIC_API_KEY not set: show "AI analysis unavailable — contact support" message, do not crash
+- If STRIPE_SECRET_KEY not set: top-up button shows "Payment system coming soon", do not crash
+- All new pages must be mobile responsive
+- Run full typecheck after build — zero TypeScript errors
+- Confirm all 5 new pages/sections render correctly for each tier level
+
+Report format:
+- New files created
+- Existing files modified
+- Database tables added (admin_config)
+- Any flagged issues requiring manual attention
