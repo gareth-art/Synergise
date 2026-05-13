@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useLogout } from "@workspace/api-client-react";
@@ -109,6 +109,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const isPaidTier = user?.subscriptionTier === "professional" || user?.subscriptionTier === "cfo-suite";
   const { data: creditsData } = useCredits(isPaidTier);
+
+  // Fix B: Keepalive ping every 4 minutes to prevent session expiry during use
+  useEffect(() => {
+    const ping = setInterval(() => {
+      fetch("/api/auth/me", { credentials: "include" }).catch(() => {});
+    }, 4 * 60 * 1000);
+    return () => clearInterval(ping);
+  }, []);
 
   const handleLogout = () => {
     logoutMutation.mutate(undefined, {

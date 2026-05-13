@@ -1,0 +1,175 @@
+Fix two issues with the onboarding experience. Do not change any logic, routing, or API calls.
+
+---
+
+## FIX 1: ONBOARDING LAYOUT — VISUAL REDESIGN
+
+The current onboarding card is too narrow, the progress steps are clipped, and the layout feels cramped. Replace the layout with this:
+
+### Page wrapper:
+- Full screen height: min-h-screen
+- Background: #F7F9F9 (the app background colour)
+- Flex column, items-center, justify-center
+- Padding: px-4 py-12
+
+### Progress steps bar:
+- Must be ABOVE the card, not inside it
+- Full width of the card (max-w-2xl)
+- Steps should never clip — use flex with flex-nowrap, each step gets equal space
+- Step circle: w-9 h-9, text-sm font-semibold
+- Active/completed: bg-primary (#0D7377) text-white
+- Inactive: bg-gray-100 text-gray-400
+- Completed steps show a ✓ checkmark (Check icon from lucide-react), not the number
+- Step label: text-xs font-medium, below or beside the circle, hidden on mobile (hidden sm:block)
+- Connector line between steps: flex-1 h-px bg-gray-200, turns bg-primary when step is completed
+- The entire progress bar must fit within max-w-2xl without any clipping
+
+### Card:
+- Width: w-full max-w-2xl (wider than current)
+- Background: white
+- Border: 1px solid #E5E7EB
+- Border radius: rounded-2xl
+- Shadow: shadow-md
+- Padding: p-10 on desktop, p-6 on mobile
+
+### Step content inside card:
+- Step heading: text-2xl font-bold text-gray-900, mb-2
+- Step subheading: text-base text-gray-500, mb-8
+- Form fields: full width, stacked vertically, gap-4 between fields
+- Each label: text-sm font-medium text-gray-700, mb-1
+- Each input/select: w-full, border border-gray-200, rounded-lg, px-4 py-3, text-sm, focus:ring-2 focus:ring-primary/30 focus:border-primary
+- Select dropdowns: same styling as inputs, appearance-none with a chevron icon
+- Next/Continue button: w-full, bg-primary, text-white, rounded-lg, py-3, text-sm font-semibold, hover:bg-primary-dark
+- Back button (steps 2+): ghost button, text-gray-500, above or below the main button
+
+### Step 1 — Welcome:
+- Heading: "Welcome to Synergise, [First Name]! 👋"
+- Subheading: "Let's personalise your experience. It takes 60 seconds."
+- Single button: "Let's go →" (full width primary)
+- No form fields on this step
+
+### Step 2 — Your Business:
+- Heading: "Tell us about your business"
+- Fields: Business Name (text input), Industry (select dropdown)
+- Button: "Next →"
+
+### Step 3 — Scale & Region:
+- Heading: "Where are you based?"
+- Fields: Region (select), Revenue Stage (select)
+- Button: "Next →"
+
+### Step 4 — Ready:
+- Heading: "You're all set, [First Name]! 🎉"  
+- Subheading: "Your dashboard is personalised for [industry] businesses in [region]."
+- Button: "Go to Dashboard →" with loading spinner when submitting
+- If error: show red error card below button with the error message
+
+### Mobile:
+- On screens < 640px: card padding p-6, step labels hidden, connector lines shorter
+- Buttons remain full width
+- All inputs remain full width
+
+---
+
+## FIX 2: SESSION TIMEOUT DURING ONBOARDING
+
+Users are being kicked back to login with "Your session expired" message while completing onboarding. This must never happen.
+
+### Fix A: Extend session maxAge in server config
+In app.ts or server/index.ts, find the express-session config and update:
+
+```ts
+cookie: {
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  sameSite: 'lax',
+  maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days — users should stay logged in
+}
+```
+
+30 days is standard for SaaS applications. Users should not be logged out unless they explicitly sign out.
+
+### Fix B: Add session keepalive ping
+In the dashboard layout AND the onboarding page, add a silent background ping every 4 minutes to keep the session alive:
+
+```tsx
+useEffect(() => {
+  const ping = setInterval(async () => {
+    await fetch('/api/auth/me', { credentials: 'include' }).catch(() => {});
+  }, 4 * 60 * 1000); // every 4 minutes
+  return () => clearInterval(ping);
+}, []);
+```
+
+Add this to:
+- Onboarding.tsx (so session stays alive while user is filling in forms)
+- DashboardLayout.tsx (so session stays alive during normal use)
+
+### Fix C: Handle session expiry gracefully — never interrupt onboarding
+In Onboarding.tsx handleComplete function, if the POST /api/onboarding returns 401:
+- Do NOT redirect to login immediately
+- First attempt to re-authenticate silently: GET /api/auth/me with credentials: include
+- If that returns 200 (session actually still valid, was a transient error): retry the POST /api/onboarding once
+- If GET /api/auth/me returns 401 (session genuinely expired): show this message inline in the card (do not redirect):
+
+```tsx
+<div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+  <strong>Your session expired</strong> while you were filling in the form. 
+  Your answers have been saved. 
+  <button onClick={() => setLocation('/login?prefill=true')} className="underline ml-1">
+    Sign in again to continue
+  </button> — you won't need to redo this step.
+</div>
+```
+
+Do not auto-redirect. Let the user choose when to re-authenticate.
+
+### Fix D: Preserve onboarding form data across session expiry
+In Onboarding.tsx, save form state to sessionStorage on every field change:
+
+```tsx
+// Save to sessionStorage whenever any field changes
+useEffect(() => {
+  sessionStorage.setItem('onboarding_draft', JSON.stringify({
+    businessName,
+    industry,
+    region,
+    revenueStage,
+    currentStep
+  }));
+}, [businessName, industry, region, revenueStage, currentStep]);
+
+// Restore from sessionStorage on mount
+useEffect(() => {
+  const draft = sessionStorage.getItem('onboarding_draft');
+  if (draft) {
+    try {
+      const parsed = JSON.parse(draft);
+      if (parsed.businessName) setBusinessName(parsed.businessName);
+      if (parsed.industry) setIndustry(parsed.industry);
+      if (parsed.region) setRegion(parsed.region);
+      if (parsed.revenueStage) setRevenueStage(parsed.revenueStage);
+      if (parsed.currentStep) setCurrentStep(parsed.currentStep);
+    } catch {}
+  }
+}, []);
+
+// Clear draft after successful submission
+// In handleComplete success path:
+sessionStorage.removeItem('onboarding_draft');
+```
+
+This means even if the session expires and the user signs back in, their onboarding answers are still there when they return to /onboarding.
+
+---
+
+## VERIFY AFTER FIX:
+
+1. Open /onboarding — progress bar shows all 4 steps without clipping ✅
+2. Card is wide, well-padded, centred on screen ✅
+3. On mobile (375px): steps show circles only (no labels), card fills screen width with padding ✅
+4. Fill in onboarding slowly (take 5+ minutes) — session does NOT expire ✅
+5. "Go to Dashboard" button works → loads dashboard ✅
+6. If manually testing session expiry: error shows inline in card, not a redirect ✅
+
+Do not change any routing, auth logic, API routes, or database schema.
