@@ -1,0 +1,164 @@
+Rebuild the Financial Modelling module completely. 
+Do NOT change any other modules, routes, auth logic, 
+or database schema outside of what is specified below.
+
+The current single-input model is insufficient. 
+Replace it with a structured multi-section financial 
+model builder as follows:
+
+─────────────────────────────────────
+SECTION 1: REVENUE BUILDER
+─────────────────────────────────────
+Allow the user to add multiple revenue line items.
+Each line item has:
+- Name (text input, e.g. "Retainer Clients")
+- Monthly Base Amount (SGD number input)
+- Monthly Growth Rate % (number input, default 0)
+- Revenue Type (dropdown: Recurring / One-time / 
+  Project-based)
+- Seasonality Toggle (checkbox):
+  - If enabled, show 12 monthly multiplier sliders 
+    (Jan–Dec), defaulting to 1.0x each
+  - Multipliers adjust that month's revenue: 
+    e.g. Dec 1.4x means December revenue = base × 1.4
+
+Tier limits on revenue lines:
+- Trial: max 2 revenue lines, no seasonality
+- Professional: unlimited lines, seasonality enabled
+- CFO Suite: unlimited lines, seasonality enabled
+
+─────────────────────────────────────
+SECTION 2: COGS / VARIABLE COSTS
+─────────────────────────────────────
+Allow the user to add multiple COGS line items.
+Each line item has:
+- Name (text input, e.g. "Raw Materials")
+- Cost Basis (dropdown):
+  - % of linked revenue line
+  - Fixed amount per unit sold
+  - Fixed amount per month
+- Value (number input — percentage or SGD depending 
+  on basis)
+- Linked Revenue Line (dropdown from Section 1 names,
+  or "All Revenue")
+
+Tier limits:
+- Trial: max 2 COGS lines
+- Professional: unlimited
+- CFO Suite: unlimited
+
+─────────────────────────────────────
+SECTION 3: FIXED OPERATING EXPENSES
+─────────────────────────────────────
+Show the following named opex line items, each with:
+- Monthly SGD amount
+- Annual escalation % (default 0)
+
+Line items (pre-labelled, not editable):
+1. Rent / Office
+2. Salaries & Payroll
+3. Marketing & Advertising
+4. Software & Subscriptions
+5. Professional Fees
+6. Loan Repayments / Interest
+7. Other (with a custom label text field)
+
+Tier gating:
+- Trial: show this section as a blurred/locked 
+  preview with "Upgrade to Professional to add 
+  detailed operating expenses" overlay
+- Professional + CFO Suite: fully editable
+
+─────────────────────────────────────
+SECTION 4: REAL-TIME OUTPUTS
+─────────────────────────────────────
+All outputs update live as inputs change.
+
+ALL TIERS (Trial, Professional, CFO Suite):
+- Gross Profit (SGD)
+- Gross Margin %
+- EBITDA (SGD)
+- Net Margin %
+- Monthly Cash Burn (if EBITDA is negative)
+
+PROFESSIONAL + CFO SUITE only:
+- 12-month projected P&L table with columns:
+  Month | Revenue | COGS | Gross Profit | 
+  Total Opex | EBITDA | Net Profit
+- Break-even month indicator: "Your model reaches 
+  EBITDA break-even in Month X"
+- If never break-even in 12 months, show: 
+  "Model does not reach break-even within 12 months 
+  — review cost structure"
+
+CFO SUITE only:
+- 12-month line chart: Revenue vs EBITDA by month 
+  (use the existing chart library already in the 
+  codebase)
+- AI Insight section (deduct 1 credit on generate):
+  "Analyse this financial model and provide 3 
+  specific insights: (1) break-even trajectory, 
+  (2) the biggest cost driver vs. revenue, 
+  (3) one lever the founder could pull to improve 
+  EBITDA margin. Reference the user's industry 
+  from their onboarding profile."
+  AI model: use admin_config value for CFO Suite tier
+
+─────────────────────────────────────
+SECTION 5: SAVE & SCENARIOS
+─────────────────────────────────────
+- "Save Model" button saves the full model 
+  (all sections) under a user-named label
+- Saved models list shows name + date + 
+  EBITDA snapshot
+- Loading a saved model populates all sections
+
+Scenario Planning (existing gate — CFO Suite):
+- Keep the existing "Available on CFO Suite" 
+  locked state for now
+- Do not build scenario logic in this prompt
+
+─────────────────────────────────────
+DATA / STATE NOTES
+─────────────────────────────────────
+- All model state is local React state (no 
+  auto-save — only on button press)
+- On save, POST to /api/financial-model/save 
+  with the full model JSON as a blob
+- Retrieve saved models from 
+  GET /api/financial-model/list
+- These routes already exist — do not recreate them
+- If they don't exist, create them and flag it
+
+─────────────────────────────────────
+VISUAL / UX REQUIREMENTS
+─────────────────────────────────────
+- Each section is a collapsible card with a 
+  header, expand/collapse toggle
+- "Add Revenue Line" and "Add COGS Line" are 
+  teal "+ Add" buttons below each section
+- Inputs use the existing form styling 
+  (teal borders, white background)
+- Locked sections (Trial) show blurred content 
+  + upgrade overlay — same pattern as other 
+  locked modules
+- Mobile responsive — stack all sections 
+  vertically on small screens
+
+─────────────────────────────────────
+DO NOT CHANGE:
+─────────────────────────────────────
+- Any other module (Management Accounts, 
+  Comparables, Unit Economics, CFO Metrics)
+- Auth, session, or middleware logic
+- Tier definitions or credits deduction logic 
+  (except the 1 credit for AI insight above)
+- Database schema (use existing model save/load 
+  routes or create only what's missing)
+- Admin panel
+
+After completing, report:
+- New components created
+- Existing files modified
+- Any backend routes created (if missing)
+- Any flagged issues requiring manual review

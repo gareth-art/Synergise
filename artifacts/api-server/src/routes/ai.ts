@@ -138,4 +138,51 @@ router.post(
   }
 );
 
+// POST /api/ai/analyse-financial-model — cfo-suite only, costs 1 credit
+router.post(
+  "/ai/analyse-financial-model",
+  requireAuth,
+  requireTier(["cfo-suite"]),
+  requireCredits(1),
+  async (req, res): Promise<void> => {
+    const user = req.user as { id: number; subscriptionTier: string };
+    const { industry, summary, projections } = req.body;
+
+    const client = getAnthropicClient();
+    if (!client) {
+      res.json({ insight: null, error: "AI analysis unavailable — contact support" });
+      return;
+    }
+
+    try {
+      const model = await getModelForTier("cfo-suite");
+      const userContent = [
+        `Industry: ${industry}`,
+        `Month 1 Summary: ${JSON.stringify(summary, null, 2)}`,
+        projections ? `12-Month Projections (EBITDA): ${(projections as any[]).map((p: any) => `M${p.month}: ${Math.round(p.ebitda)}`).join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const insight = await callClaude(
+        client,
+        model,
+        `You are a CFO advisor for Southeast Asian founder-operated businesses. Analyse this financial model and provide exactly 3 specific insights:
+1. Break-even trajectory — when and how the business reaches EBITDA break-even (or why it may not within 12 months)
+2. Biggest cost driver vs. revenue — identify the cost structure risk most likely to compress margins
+3. One lever the founder can pull to improve EBITDA margin — be specific to their industry
+
+Reference the user's industry. Be direct and quantitative where possible. Under 220 words.`,
+        userContent
+      );
+
+      const creditsRemaining = await deductCredits(user.id, 1);
+      res.json({ insight, creditsRemaining, model });
+    } catch (err) {
+      logger.error({ err }, "AI analyse-financial-model failed");
+      res.status(500).json({ error: "AI analysis failed" });
+    }
+  }
+);
+
 export default router;

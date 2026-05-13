@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db, financialModelsTable } from "@workspace/db";
 import { CreateModelBody, DeleteModelParams } from "@workspace/api-zod";
 
@@ -73,6 +73,68 @@ router.delete("/models/:id", requireAuth, async (req, res): Promise<void> => {
   }
 
   res.json({ message: "Model deleted" });
+});
+
+// ─── New financial-model routes (structured multi-section builder) ────────────
+
+router.get("/financial-model/list", requireAuth, async (req, res): Promise<void> => {
+  const user = req.user as { id: number };
+  const models = await db
+    .select()
+    .from(financialModelsTable)
+    .where(eq(financialModelsTable.userId, user.id))
+    .orderBy(desc(financialModelsTable.createdAt));
+  res.json(models);
+});
+
+router.post("/financial-model/save", requireAuth, async (req, res): Promise<void> => {
+  const user = req.user as { id: number };
+  const { modelName, industry, modelData, outputSnapshot } = req.body;
+
+  if (!modelName || typeof modelName !== "string" || !modelData) {
+    res.status(400).json({ error: "modelName and modelData are required" });
+    return;
+  }
+
+  const [model] = await db
+    .insert(financialModelsTable)
+    .values({
+      userId: user.id,
+      industry: typeof industry === "string" ? industry : "Other",
+      modelName: modelName.trim(),
+      inputs: modelData,
+      outputs: outputSnapshot ?? {},
+    })
+    .returning();
+
+  res.status(201).json(model);
+});
+
+router.delete("/financial-model/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const user = req.user as { id: number };
+
+  const [deleted] = await db
+    .delete(financialModelsTable)
+    .where(
+      and(
+        eq(financialModelsTable.id, id),
+        eq(financialModelsTable.userId, user.id)
+      )
+    )
+    .returning();
+
+  if (!deleted) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  res.json({ message: "Deleted" });
 });
 
 export default router;
