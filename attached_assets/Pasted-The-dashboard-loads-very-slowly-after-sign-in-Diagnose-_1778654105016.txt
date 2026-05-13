@@ -1,0 +1,82 @@
+The dashboard loads very slowly after sign in. Diagnose and fix the performance issue. Do NOT touch any auth logic, routing, or these files: use-auth.tsx, RequireAuth.tsx, RequireOnboarding.tsx, App.tsx, Login.tsx, Signup.tsx, Onboarding.tsx.
+
+---
+
+## STEP 1: IDENTIFY THE SLOW CALLS
+
+Open browser DevTools → Network tab → sign in and watch the waterfall.
+
+Report:
+- Which API calls are made after login, in what order
+- Which calls are sequential (waiting for previous to finish) vs parallel
+- Which call takes the longest
+- Is there any call that waits for a previous one unnecessarily
+
+---
+
+## STEP 2: FIX THE PERFORMANCE ISSUES
+
+### Fix A: Parallel queries on dashboard mount
+In the dashboard home page and DashboardLayout, any useQuery calls that don't depend on each other must run in parallel — not sequentially.
+
+If you see this pattern (sequential):
+```tsx
+const { data: user } = useQuery([...]);
+const { data: profile } = useQuery([...], { enabled: !!user });
+const { data: accounts } = useQuery([...], { enabled: !!profile });
+```
+
+Replace with parallel (remove unnecessary enabled dependencies):
+```tsx
+const { data: user } = useQuery([...]);
+const { data: profile } = useQuery([...]); // runs immediately, not waiting for user
+const { data: accounts } = useQuery([...]); // runs immediately
+```
+
+### Fix B: Dashboard data should not block render
+The dashboard home page should render immediately with a skeleton/loading state while data loads — it must never show a blank screen waiting for API calls.
+
+In dashboard home (home.tsx or equivalent):
+- Render the page layout immediately
+- Show skeleton loaders for metric tiles while data is fetching
+- Use isLoading states per section, not a single top-level loading gate
+
+### Fix C: Prefetch onboarding profile during login
+In Login.tsx — after successful login, you're already calling GET /api/onboarding to check completion. Store that result in the query cache so RequireOnboarding doesn't need to fetch it again:
+
+```tsx
+const onboardingRes = await fetch('/api/onboarding', { credentials: 'include' });
+if (onboardingRes.ok) {
+  const profile = await onboardingRes.json();
+  // Store in cache so RequireOnboarding uses this immediately
+  queryClient.setQueryData(['onboarding-profile'], profile);
+  setLocation('/dashboard');
+} else {
+  setLocation('/onboarding');
+}
+```
+
+### Fix D: staleTime on dashboard queries
+Any query that fetches relatively static data (user profile, onboarding profile, benchmark data) should have a staleTime of at least 5 minutes so it doesn't refetch on every navigation:
+
+```tsx
+useQuery({
+  queryKey: ['onboarding-profile'],
+  staleTime: 5 * 60 * 1000,
+  ...
+})
+```
+
+### Fix E: DashboardLayout — remove any blocking useEffect
+If DashboardLayout has a useEffect that fetches data and the component waits for it before rendering children — remove the blocking behaviour. Children should render immediately, layout data loads in background.
+
+---
+
+## STEP 3: VERIFY
+
+After fixes:
+- Sign in → dashboard should appear within 1-2 seconds maximum
+- Network waterfall should show parallel requests, not a sequential chain
+- No blank white screen at any point during navigation
+
+Report which fixes were applied and the before/after timing if visible in DevTools.

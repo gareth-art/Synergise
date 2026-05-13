@@ -2,7 +2,6 @@ import { useState } from "react";
 import { format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  useGetOnboarding,
   useGetModels,
   useCreateModel,
   useDeleteModel,
@@ -434,9 +433,23 @@ function ScenarioSection({ modelId, baseInputs, baseOutputs, industry, userTier 
   );
 }
 
+interface OnboardingProfile { industry: string }
+
+async function fetchOnboardingProfile(): Promise<OnboardingProfile | null> {
+  const res = await fetch("/api/onboarding", { credentials: "include" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export default function Modelling() {
   const { user } = useAuth();
-  const { data: onboarding } = useGetOnboarding();
+  const { data: onboarding } = useQuery<OnboardingProfile | null>({
+    queryKey: ["onboarding-profile"],
+    queryFn: fetchOnboardingProfile,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const { data: models, isLoading: isModelsLoading } = useGetModels();
   const createModelMutation = useCreateModel();
   const deleteModelMutation = useDeleteModel();

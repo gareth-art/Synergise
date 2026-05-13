@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useGetOnboarding, useGetBenchmarks } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { useGetBenchmarks } from "@workspace/api-client-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Lock, BarChart2 } from "lucide-react";
 
+interface OnboardingProfile { industry: string; region: string }
+
+async function fetchOnboardingProfile(): Promise<OnboardingProfile | null> {
+  const res = await fetch("/api/onboarding", { credentials: "include" });
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export default function Comparables() {
-  const { data: onboarding } = useGetOnboarding();
+  const { data: onboarding } = useQuery<OnboardingProfile | null>({
+    queryKey: ["onboarding-profile"],
+    queryFn: fetchOnboardingProfile,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
   const [consent, setConsent] = useState(false);
   const [industry, setIndustry] = useState(onboarding?.industry || "Technology & SaaS");
   const [region, setRegion] = useState(onboarding?.region || "Southeast Asia");
