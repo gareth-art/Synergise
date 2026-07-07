@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "FLCxbGQXrRjr2VLLzxObm"
+uri = "file://synergise-project.zip"
+type = "unspecified"
+title = "Synergise — Full Project (latest)"
