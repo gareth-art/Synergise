@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useLogout } from "@workspace/api-client-react";
+import { clearSessionToken } from "@/lib/session-token";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -186,6 +187,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, []);
 
   const handleLogout = () => {
+    clearSessionToken();
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
         queryClient.setQueryData(["auth-user"], null);

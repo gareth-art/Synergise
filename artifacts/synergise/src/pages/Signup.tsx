@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSetAuth } from "@/hooks/use-auth";
+import { setSessionToken } from "@/lib/session-token";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +62,10 @@ export default function Signup() {
         setServerError(data.error ?? "Signup failed. Please try again.");
         return;
       }
+
+      // Persist session ID for cookie-independent auth in cross-site iframe contexts
+      const sessionId = res.headers.get("x-session-id");
+      if (sessionId) setSessionToken(sessionId);
 
       // Populate auth cache — server returns the user object directly
       setAuth(data);

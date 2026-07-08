@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { SignupBody } from "@workspace/api-zod";
+import { sessionTokens } from "../session-tokens";
 
 const router: IRouter = Router();
 
@@ -66,6 +67,8 @@ router.post("/auth/signup", async (req, res): Promise<void> => {
         res.status(500).json({ error: "Session save failed" });
         return;
       }
+      sessionTokens.set(req.session.id, user.id);
+      res.setHeader("X-Session-ID", req.session.id);
       const { password: _pw, ...safeUser } = user;
       res.status(201).json(safeUser);
     });
@@ -94,6 +97,8 @@ router.post("/auth/login", (req, res, next): void => {
             next(saveErr);
             return;
           }
+          sessionTokens.set(req.session.id, user.id);
+          res.setHeader("X-Session-ID", req.session.id);
           const { password: _pw, ...safeUser } = user;
           res.json(safeUser);
         });
@@ -103,11 +108,13 @@ router.post("/auth/login", (req, res, next): void => {
 });
 
 router.post("/auth/logout", (req, res): void => {
+  const sid = req.session.id;
   req.logout((err) => {
     if (err) {
       res.status(500).json({ error: "Logout failed" });
       return;
     }
+    sessionTokens.delete(sid);
     res.json({ message: "Logged out successfully" });
   });
 });

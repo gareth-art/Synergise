@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { sessionTokens } from "./session-tokens";
 
 const MemoryStoreSession = MemoryStore(session);
 
@@ -79,6 +80,7 @@ app.use(
 app.use(cors({
   origin: true,
   credentials: true,
+  exposedHeaders: ["X-Session-ID"],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -122,6 +124,26 @@ app.use(
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Cookie-independent session restore for cross-site iframe environments (e.g. Replit canvas).
+// If the browser can't send the session cookie (SameSite restrictions), the client falls back
+// to sending the session ID in the X-Session-ID header. We look it up in sessionTokens and
+// hydrate req.user so all downstream isAuthenticated() checks pass normally.
+app.use(async (req: Request, _res: Response, next: NextFunction) => {
+  if (req.isAuthenticated()) return next();
+
+  const sessionId = req.headers["x-session-id"] as string | undefined;
+  if (!sessionId) return next();
+
+  const userId = sessionTokens.get(sessionId);
+  if (!userId) return next();
+
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (user) req.user = user;
+  } catch { /* ignore */ }
+  next();
+});
 
 app.use("/api", router);
 

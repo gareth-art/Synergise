@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSetAuth } from "@/hooks/use-auth";
+import { setSessionToken } from "@/lib/session-token";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,10 @@ export default function Login() {
         setError(loginData.error ?? "Incorrect email or password. Please try again.");
         return;
       }
+
+      // Persist session ID for cookie-independent auth in cross-site iframe contexts
+      const sessionId = loginRes.headers.get("x-session-id");
+      if (sessionId) setSessionToken(sessionId);
 
       // Step 2: Set auth state — server returns user directly
       setAuth(loginData);
