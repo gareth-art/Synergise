@@ -41,4 +41,4 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-ADMIN_PASSWORD = "synergise-admin-2026"
+ADMIN_PASSWORD = "admintest"
