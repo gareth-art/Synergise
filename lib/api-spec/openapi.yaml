@@ -267,6 +267,57 @@ paths:
                 items:
                   $ref: "#/components/schemas/KpiBenchmark"
 
+  /unit-economics:
+    get:
+      operationId: getUnitEconomicsModels
+      tags: [unit-economics]
+      summary: Get all unit economics models for current user
+      responses:
+        "200":
+          description: List of unit economics models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UnitEconomicsModel"
+    post:
+      operationId: createUnitEconomicsModel
+      tags: [unit-economics]
+      summary: Save a unit economics model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnitEconomicsInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnitEconomicsModel"
+
+  /unit-economics/{id}:
+    delete:
+      operationId: deleteUnitEconomicsModel
+      tags: [unit-economics]
+      summary: Delete a unit economics model
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   /admin/segments:
     get:
       operationId: getAdminSegments
@@ -499,6 +550,77 @@ components:
         - revenue
         - cogs
         - operatingExpenses
+
+    UnitEconomicsModel:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        modelName:
+          type: string
+        industry:
+          type: string
+        revenuePerUnit:
+          type: string
+        variableCostPerUnit:
+          type: string
+        fixedCostsPerMonth:
+          type: string
+        unitsPerMonth:
+          type: string
+        contributionMargin:
+          type: string
+        contributionMarginPct:
+          type: string
+        breakEvenUnits:
+          type: string
+        breakEvenRevenue:
+          type: string
+        safetyMarginPct:
+          type: string
+        monthlyProfit:
+          type: string
+        createdAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - userId
+        - modelName
+        - industry
+        - revenuePerUnit
+        - variableCostPerUnit
+        - fixedCostsPerMonth
+        - unitsPerMonth
+        - contributionMargin
+        - contributionMarginPct
+        - breakEvenUnits
+        - breakEvenRevenue
+        - safetyMarginPct
+        - monthlyProfit
+
+    UnitEconomicsInput:
+      type: object
+      properties:
+        modelName:
+          type: string
+        industry:
+          type: string
+        revenuePerUnit:
+          type: number
+        variableCostPerUnit:
+          type: number
+        fixedCostsPerMonth:
+          type: number
+        unitsPerMonth:
+          type: number
+      required:
+        - modelName
+        - revenuePerUnit
+        - variableCostPerUnit
+        - fixedCostsPerMonth
+        - unitsPerMonth
 
     KpiBenchmark:
       type: object

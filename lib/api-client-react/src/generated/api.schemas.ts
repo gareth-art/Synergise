@@ -119,6 +119,34 @@ export interface ManagementAccountInput {
   operatingExpenses: ManagementAccountInputOperatingExpenses;
 }
 
+export interface UnitEconomicsModel {
+  id: number;
+  userId: number;
+  modelName: string;
+  industry: string;
+  revenuePerUnit: string;
+  variableCostPerUnit: string;
+  fixedCostsPerMonth: string;
+  unitsPerMonth: string;
+  contributionMargin: string;
+  contributionMarginPct: string;
+  breakEvenUnits: string;
+  breakEvenRevenue: string;
+  safetyMarginPct: string;
+  monthlyProfit: string;
+  /** @nullable */
+  createdAt?: string | null;
+}
+
+export interface UnitEconomicsInput {
+  modelName: string;
+  industry?: string;
+  revenuePerUnit: number;
+  variableCostPerUnit: number;
+  fixedCostsPerMonth: number;
+  unitsPerMonth: number;
+}
+
 export interface KpiBenchmark {
   id: number;
   industry: string;

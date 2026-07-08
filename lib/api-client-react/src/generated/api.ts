@@ -30,6 +30,8 @@ import type {
   OnboardingInput,
   OnboardingProfile,
   SignupInput,
+  UnitEconomicsInput,
+  UnitEconomicsModel,
   User,
 } from "./api.schemas";
 
@@ -1169,6 +1171,252 @@ export function useGetBenchmarks<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get all unit economics models for current user
+ */
+export const getGetUnitEconomicsModelsUrl = () => {
+  return `/api/unit-economics`;
+};
+
+export const getUnitEconomicsModels = async (
+  options?: RequestInit,
+): Promise<UnitEconomicsModel[]> => {
+  return customFetch<UnitEconomicsModel[]>(getGetUnitEconomicsModelsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUnitEconomicsModelsQueryKey = () => {
+  return [`/api/unit-economics`] as const;
+};
+
+export const getGetUnitEconomicsModelsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUnitEconomicsModels>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUnitEconomicsModels>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUnitEconomicsModelsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUnitEconomicsModels>>
+  > = ({ signal }) => getUnitEconomicsModels({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUnitEconomicsModels>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUnitEconomicsModelsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUnitEconomicsModels>>
+>;
+export type GetUnitEconomicsModelsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get all unit economics models for current user
+ */
+
+export function useGetUnitEconomicsModels<
+  TData = Awaited<ReturnType<typeof getUnitEconomicsModels>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getUnitEconomicsModels>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUnitEconomicsModelsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save a unit economics model
+ */
+export const getCreateUnitEconomicsModelUrl = () => {
+  return `/api/unit-economics`;
+};
+
+export const createUnitEconomicsModel = async (
+  unitEconomicsInput: UnitEconomicsInput,
+  options?: RequestInit,
+): Promise<UnitEconomicsModel> => {
+  return customFetch<UnitEconomicsModel>(getCreateUnitEconomicsModelUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(unitEconomicsInput),
+  });
+};
+
+export const getCreateUnitEconomicsModelMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createUnitEconomicsModel>>,
+    TError,
+    { data: BodyType<UnitEconomicsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createUnitEconomicsModel>>,
+  TError,
+  { data: BodyType<UnitEconomicsInput> },
+  TContext
+> => {
+  const mutationKey = ["createUnitEconomicsModel"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createUnitEconomicsModel>>,
+    { data: BodyType<UnitEconomicsInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createUnitEconomicsModel(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateUnitEconomicsModelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createUnitEconomicsModel>>
+>;
+export type CreateUnitEconomicsModelMutationBody = BodyType<UnitEconomicsInput>;
+export type CreateUnitEconomicsModelMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save a unit economics model
+ */
+export const useCreateUnitEconomicsModel = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createUnitEconomicsModel>>,
+    TError,
+    { data: BodyType<UnitEconomicsInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createUnitEconomicsModel>>,
+  TError,
+  { data: BodyType<UnitEconomicsInput> },
+  TContext
+> => {
+  return useMutation(getCreateUnitEconomicsModelMutationOptions(options));
+};
+
+/**
+ * @summary Delete a unit economics model
+ */
+export const getDeleteUnitEconomicsModelUrl = (id: number) => {
+  return `/api/unit-economics/${id}`;
+};
+
+export const deleteUnitEconomicsModel = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteUnitEconomicsModelUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteUnitEconomicsModelMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUnitEconomicsModel>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteUnitEconomicsModel>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteUnitEconomicsModel"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteUnitEconomicsModel>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteUnitEconomicsModel(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteUnitEconomicsModelMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteUnitEconomicsModel>>
+>;
+
+export type DeleteUnitEconomicsModelMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a unit economics model
+ */
+export const useDeleteUnitEconomicsModel = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteUnitEconomicsModel>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteUnitEconomicsModel>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteUnitEconomicsModelMutationOptions(options));
+};
 
 /**
  * @summary Get admin segments data

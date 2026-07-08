@@ -30,4 +30,6 @@ export * from "./messageResponse";
 export * from "./onboardingInput";
 export * from "./onboardingProfile";
 export * from "./signupInput";
+export * from "./unitEconomicsInput";
+export * from "./unitEconomicsModel";
 export * from "./user";

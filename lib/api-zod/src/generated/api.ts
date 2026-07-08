@@ -192,6 +192,53 @@ export const GetBenchmarksResponseItem = zod.object({
 export const GetBenchmarksResponse = zod.array(GetBenchmarksResponseItem);
 
 /**
+ * @summary Get all unit economics models for current user
+ */
+export const GetUnitEconomicsModelsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  modelName: zod.string(),
+  industry: zod.string(),
+  revenuePerUnit: zod.string(),
+  variableCostPerUnit: zod.string(),
+  fixedCostsPerMonth: zod.string(),
+  unitsPerMonth: zod.string(),
+  contributionMargin: zod.string(),
+  contributionMarginPct: zod.string(),
+  breakEvenUnits: zod.string(),
+  breakEvenRevenue: zod.string(),
+  safetyMarginPct: zod.string(),
+  monthlyProfit: zod.string(),
+  createdAt: zod.string().nullish(),
+});
+export const GetUnitEconomicsModelsResponse = zod.array(
+  GetUnitEconomicsModelsResponseItem,
+);
+
+/**
+ * @summary Save a unit economics model
+ */
+export const CreateUnitEconomicsModelBody = zod.object({
+  modelName: zod.string(),
+  industry: zod.string().optional(),
+  revenuePerUnit: zod.number(),
+  variableCostPerUnit: zod.number(),
+  fixedCostsPerMonth: zod.number(),
+  unitsPerMonth: zod.number(),
+});
+
+/**
+ * @summary Delete a unit economics model
+ */
+export const DeleteUnitEconomicsModelParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteUnitEconomicsModelResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
  * @summary Get admin segments data
  */
 export const GetAdminSegmentsResponse = zod.object({
