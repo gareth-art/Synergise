@@ -6,6 +6,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   LayoutDashboard,
   Calculator,
   BookOpen,
@@ -17,6 +24,7 @@ import {
   Zap,
   Sparkles,
   PieChart,
+  ChevronDown,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
@@ -278,7 +286,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Desktop spacer */}
           <div className="hidden md:block" />
 
-          {/* Tier badge + credits pill */}
+          {/* Tier badge + credits pill + user menu */}
           <div className="flex items-center gap-2">
             <Link href="/dashboard/settings#subscription">
               <span
@@ -310,6 +318,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 </span>
               )}
             </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 rounded-full border border-synergise-border bg-white px-3 py-1.5 text-xs font-medium text-synergise-text hover:bg-synergise-background transition-colors">
+                  <span className="hidden sm:inline max-w-[120px] truncate">
+                    {user?.fullName ?? user?.email ?? "Account"}
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-synergise-text-muted" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <div className="px-3 py-2">
+                  <p className="text-sm font-medium text-synergise-text truncate">{user?.fullName}</p>
+                  <p className="text-xs text-synergise-text-muted truncate">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings">
+                    <span className="flex items-center gap-2 cursor-pointer">
+                      <SettingsIcon className="h-4 w-4" />
+                      Settings
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-synergise-error focus:text-synergise-error focus:bg-red-50 cursor-pointer"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
