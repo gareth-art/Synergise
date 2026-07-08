@@ -117,9 +117,12 @@ export default function Comparables() {
                       <SelectContent>
                         <SelectItem value="Wellness & Lifestyle">Wellness & Lifestyle</SelectItem>
                         <SelectItem value="Consumer Products & Apparel">Consumer Products & Apparel</SelectItem>
-                        <SelectItem value="Technology & SaaS">Technology & SaaS</SelectItem>
+                        <SelectItem value="Membership & Experiences">Membership & Experiences</SelectItem>
+                        <SelectItem value="Professional Services">Professional Services</SelectItem>
                         <SelectItem value="F&B & Hospitality">F&B & Hospitality</SelectItem>
                         <SelectItem value="E-commerce & Retail">E-commerce & Retail</SelectItem>
+                        <SelectItem value="Technology & SaaS">Technology & SaaS</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -132,6 +135,9 @@ export default function Comparables() {
                       <SelectContent>
                         <SelectItem value="Singapore">Singapore</SelectItem>
                         <SelectItem value="Southeast Asia">Southeast Asia</SelectItem>
+                        <SelectItem value="Asia Pacific">Asia Pacific</SelectItem>
+                        <SelectItem value="North America">North America</SelectItem>
+                        <SelectItem value="Europe">Europe</SelectItem>
                         <SelectItem value="Global">Global</SelectItem>
                       </SelectContent>
                     </Select>
