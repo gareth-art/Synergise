@@ -53,10 +53,8 @@ passport.deserializeUser(async (id: number, done) => {
 
 const app: Express = express();
 
-// Trust the Replit proxy so express-session sees the original HTTPS scheme
-// (req.protocol becomes 'https' from X-Forwarded-Proto). Required for `secure: true` cookies
-// to be set when the internal connection from the proxy to Express is plain HTTP.
-app.set("trust proxy", 1);
+// Trust the Replit proxy so req.protocol reflects the original HTTPS scheme.
+app.set("trust proxy", true);
 
 app.use(
   pinoHttp({
@@ -90,22 +88,26 @@ if (!sessionSecret) {
   throw new Error("SESSION_SECRET must be set");
 }
 
+// In production the app is served over HTTPS and may be embedded cross-site,
+// so we need Secure + SameSite=None. In development (Replit dev preview) the
+// routing is same-site and X-Forwarded-Proto may not be forwarded reliably,
+// so we relax to SameSite=Lax + Secure=false to avoid express-session
+// silently dropping the Set-Cookie header.
+const isProd = process.env.NODE_ENV === "production";
+
 app.use(
   session({
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    proxy: true, // honour X-Forwarded-Proto from the Replit proxy
+    proxy: isProd,
     store: new MemoryStoreSession({
       checkPeriod: 86400000,
     }),
     cookie: {
-      // SameSite=None + Secure=true is required for cookies to be sent in the
-      // Replit workspace iframe (cross-site context). The Replit proxy serves
-      // the public URL over HTTPS, so Secure=true is satisfied via `trust proxy`.
-      secure: true,
+      secure: isProd,
       httpOnly: true,
-      sameSite: "none",
+      sameSite: isProd ? "none" : "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   })
