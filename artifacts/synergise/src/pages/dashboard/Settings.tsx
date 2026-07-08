@@ -7,10 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useLocation } from "wouter";
 
 export default function Settings() {
   const { user } = useAuth();
-  const { data: onboarding } = useGetOnboarding();
+  const { data: onboarding, isError } = useGetOnboarding();
+  const [, setLocation] = useLocation();
+  const profileMissing = isError || !onboarding;
 
   const isTrial = user?.subscriptionTier === "trial";
   const isProfessional = user?.subscriptionTier === "professional";
@@ -56,24 +59,41 @@ export default function Settings() {
                   <CardTitle>Business Profile</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Business Name</Label>
-                    <Input readOnly value={onboarding?.businessName || ""} className="bg-synergise-background" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Industry</Label>
-                      <Input readOnly value={onboarding?.industry || ""} className="bg-synergise-background" />
+                  {profileMissing ? (
+                    <div className="rounded-lg border border-dashed border-synergise-border bg-synergise-background p-6 text-center">
+                      <p className="text-sm text-synergise-text-muted mb-3">
+                        Your business profile hasn't been set up yet.
+                      </p>
+                      <Button
+                        size="sm"
+                        className="bg-synergise-primary hover:bg-synergise-primary-dark text-white"
+                        onClick={() => setLocation("/onboarding")}
+                      >
+                        Complete Your Profile
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Region</Label>
-                      <Input readOnly value={onboarding?.region || ""} className="bg-synergise-background" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Revenue Stage</Label>
-                    <Input readOnly value={onboarding?.revenueStage || ""} className="bg-synergise-background" />
-                  </div>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Business Name</Label>
+                        <Input readOnly value={onboarding.businessName || ""} className="bg-synergise-background" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Industry</Label>
+                          <Input readOnly value={onboarding.industry || ""} className="bg-synergise-background" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Region</Label>
+                          <Input readOnly value={onboarding.region || ""} className="bg-synergise-background" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Revenue Stage</Label>
+                        <Input readOnly value={onboarding.revenueStage || ""} className="bg-synergise-background" />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>

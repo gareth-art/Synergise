@@ -8,10 +8,6 @@ interface GuardResult {
   needsOnboarding: boolean;
 }
 
-// Returns a guaranteed defined value so TanStack Query never sees `undefined`
-// (which would put the query in a permanent error state and cause an infinite spinner).
-// Per spec: only redirect to /onboarding on a definitive 404. Treat every other status
-// (200, 401, 5xx, network error) as "do not redirect" so the user can reach the dashboard.
 async function checkOnboardingStatus(): Promise<GuardResult> {
   try {
     const res = await fetch("/api/onboarding", { credentials: "include" });
@@ -22,25 +18,28 @@ async function checkOnboardingStatus(): Promise<GuardResult> {
 }
 
 export function RequireOnboarding({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  const { data, isLoading } = useQuery<GuardResult>({
+  const { data, isLoading: guardLoading } = useQuery<GuardResult>({
     queryKey: ["onboarding-guard"],
     queryFn: checkOnboardingStatus,
     staleTime: 10 * 60 * 1000,
     retry: false,
     refetchOnWindowFocus: false,
-    enabled: isAuthenticated,
+    // Wait for auth to fully resolve before running — prevents the race where
+    // isAuthenticated is false while /api/auth/me is still in-flight, which
+    // would leave enabled=false and let users bypass the guard entirely.
+    enabled: !authLoading && isAuthenticated,
   });
 
   useEffect(() => {
-    if (!isLoading && data?.needsOnboarding) {
+    if (!authLoading && !guardLoading && data?.needsOnboarding) {
       setLocation("/onboarding");
     }
-  }, [isLoading, data, setLocation]);
+  }, [authLoading, guardLoading, data, setLocation]);
 
-  if (isLoading) return <LoadingSpinner message="Loading your dashboard..." />;
+  if (authLoading || guardLoading) return <LoadingSpinner message="Loading your dashboard..." />;
   if (data?.needsOnboarding) return <LoadingSpinner message="Redirecting..." />;
   return <>{children}</>;
 }

@@ -88,26 +88,33 @@ if (!sessionSecret) {
   throw new Error("SESSION_SECRET must be set");
 }
 
-// In production the app is served over HTTPS and may be embedded cross-site,
-// so we need Secure + SameSite=None. In development (Replit dev preview) the
-// routing is same-site and X-Forwarded-Proto may not be forwarded reliably,
-// so we relax to SameSite=Lax + Secure=false to avoid express-session
-// silently dropping the Set-Cookie header.
+// The app is embedded in a cross-site iframe in the Replit workspace, so cookies
+// must have SameSite=None; Secure to be sent by the browser in that context.
+// express-session only emits Set-Cookie when it sees X-Forwarded-Proto: https,
+// but the Replit proxy doesn't forward that header internally. In development we
+// inject it ourselves so the security check passes without loosening cookie policy.
 const isProd = process.env.NODE_ENV === "production";
+
+if (!isProd) {
+  app.use((_req, _res, next) => {
+    _req.headers["x-forwarded-proto"] = "https";
+    next();
+  });
+}
 
 app.use(
   session({
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
-    proxy: isProd,
+    proxy: true,
     store: new MemoryStoreSession({
       checkPeriod: 86400000,
     }),
     cookie: {
-      secure: isProd,
+      secure: true,
       httpOnly: true,
-      sameSite: isProd ? "none" : "lax",
+      sameSite: "none",
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   })
